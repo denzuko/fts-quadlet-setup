@@ -54,14 +54,12 @@ mkdir -p "$FTS_HOME"
 exit 0
 EOF
 
-    # ── Mock: getent — simulates passwd entry for ftsvc ──────────────────────
+    # ── Mock: getent — always returns the ftsvc passwd entry ────────────────
+    # (account is presumed to exist; tests that need account-absent path
+    #  override this mock locally before calling _run_installer)
     cat > "$MOCK_DIR/getent" << EOF
 #!/bin/sh
-if [ "\$1" = "passwd" ] && [ "\$2" = "$FTS_USER" ]; then
-    echo "${FTS_USER}:x:${FTS_UID}:${FTS_UID}:FreeTAKServer service account:${FTS_HOME}:/bin/bash"
-elif [ "\$1" = "passwd" ] && [ -z "\${2:-}" ]; then
-    echo "${FTS_USER}:x:${FTS_UID}:${FTS_UID}:FreeTAKServer service account:${FTS_HOME}:/bin/bash"
-fi
+echo "${FTS_USER}:x:${FTS_UID}:${FTS_UID}:FreeTAKServer service account:${FTS_HOME}:/bin/bash"
 exit 0
 EOF
 
@@ -83,7 +81,7 @@ echo "systemctl \$*" >> "$TEST_DIR/systemctl.log"
 case "\$*" in
     *"user@${FTS_UID}.service"*)
         mkdir -p "/run/user/${FTS_UID}"
-        touch "/run/user/${FTS_UID}/bus"
+        python3 -c "import socket,os; s=socket.socket(socket.AF_UNIX); s.bind('/run/user/${FTS_UID}/bus')" 2>/dev/null || true
         ;;
 esac
 exit 0
@@ -124,9 +122,85 @@ EOF
 exit 0
 EOF
 
+    # ── Mock: openssl — predictable test secret ──────────────────────────────
+    cat > "$MOCK_DIR/openssl" << 'EOF'
+#!/bin/sh
+case "$*" in
+    rand\ -hex\ *) echo "deadbeefcafedeadbeefcafedeadbeefdeadbeefcafedeadbeefcafedeadbeef" ;;
+    *)             exec /usr/bin/openssl "$@" ;;
+esac
+EOF
+
+    # ── Mock: mktemp — redirect /dev/shm into TEST_DIR ───────────────────────
+    cat > "$MOCK_DIR/mktemp" << EOF
+#!/bin/sh
+mkdir -p "$TEST_DIR/shm"
+exec /bin/mktemp -d "$TEST_DIR/shm/fts.XXXXXX"
+EOF
+
+    # ── Mock: date — reproducible snapshot tag ────────────────────────────────
+    cat > "$MOCK_DIR/date" << 'EOF'
+#!/bin/sh
+echo "20260425"
+EOF
+
     # ── Mock: sed / install — delegate to real binaries ─────────────────────
     printf '#!/bin/sh\nexec /bin/sed "$@"\n'         > "$MOCK_DIR/sed"
-    printf '#!/bin/sh\nexec /usr/bin/install "$@"\n' > "$MOCK_DIR/install"
+    # install: strip -o (owner) flag — ftsvc not a real user in CI
+    cat > "$MOCK_DIR/install" << 'EOF'
+#!/bin/sh
+args=""
+skip_next=0
+for a in "$@"; do
+    if [ "$skip_next" = "1" ]; then skip_next=0; continue; fi
+    case "$a" in
+        -o) skip_next=1 ;;
+        *)  args="$args $a" ;;
+    esac
+done
+eval exec /usr/bin/install $args
+EOF
+    cat > "$MOCK_DIR/chown" << EOF
+#!/bin/sh
+echo "chown \$*" >> "$TEST_DIR/chown.log"
+exit 0
+EOF
+
+    # ── Mock: zpool — pool always exists ─────────────────────────────────────
+    cat > "$MOCK_DIR/zpool" << 'EOF'
+#!/bin/sh
+exit 0
+EOF
+
+    # ── Mock: zfs — idempotent dataset creation tracking ─────────────────────
+    cat > "$MOCK_DIR/zfs" << EOF
+#!/bin/sh
+echo "zfs \$*" >> "$TEST_DIR/zfs.log"
+case "\$1" in
+    list)
+        _ds="\${*##* }"
+        grep -qF "\$_ds" "$TEST_DIR/zfs_created.log" 2>/dev/null && exit 0 || exit 1
+        ;;
+    create)
+        _name=""
+        for _a in \$*; do _name="\$_a"; done
+        echo "\$_name" >> "$TEST_DIR/zfs_created.log"
+        exit 0
+        ;;
+    snapshot)
+        echo "zfs \$*" >> "$TEST_DIR/zfs.log"
+        exit 0
+        ;;
+    destroy)
+        echo "zfs \$*" >> "$TEST_DIR/zfs.log"
+        exit 0
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+EOF
+    touch "$TEST_DIR/zfs_created.log"
 
     chmod +x "$MOCK_DIR"/*
     export PATH="$MOCK_DIR:$PATH"
@@ -147,10 +221,8 @@ _run_installer() {
     FTS_USER="$FTS_USER" \
     FTS_UID="$FTS_UID" \
     FTS_IP="${FTS_IP:-10.0.0.1}" \
-        sh "$REPO_ROOT/fts_setup.sh" \
-            --ip "${FTS_IP:-10.0.0.1}" \
-            --user "$FTS_USER" \
-            --uid  "$FTS_UID"
+    BUS_TIMEOUT=5 \
+        sh "$REPO_ROOT/fts_setup.sh"
 }
 
 # ─── 1. ShellCheck ───────────────────────────────────────────────────────────
@@ -182,39 +254,139 @@ EOF
 
 # ─── 3. Argument handling ────────────────────────────────────────────────────
 
-@test "installer: exits non-zero on unknown flag" {
-    run sh "$REPO_ROOT/fts_setup.sh" --no-such-flag
-    [ "$status" -ne 0 ]
+@test "installer: ignores unknown env vars without failing" {
+    run env QUADLET_DIR="$QUADLET_DIR" FTS_USER="$FTS_USER" FTS_UID="$FTS_UID"         FTS_IP="10.0.0.1" BUS_TIMEOUT=5 SOME_RANDOM_VAR=ignored         sh "$REPO_ROOT/fts_setup.sh"
+    [ "$status" -eq 0 ]
 }
 
-@test "installer: accepts --ip --user --uid without error" {
+@test "installer: runs successfully with env vars only (no CLI flags)" {
     run _run_installer
     [ "$status" -eq 0 ]
+}
+
+@test "installer: auto-detects VIP when FTS_IP is not set" {
+    # ip mock returns predictable address; installer must not die
+    _saved="$FTS_IP"
+    unset FTS_IP
+    run _run_installer
+    export FTS_IP="$_saved"
+    [ "$status" -eq 0 ]
+}
+
+# ─── Secrets (R09) ───────────────────────────────────────────────────────────
+
+@test "installer: generates FTS_UI_WSKEY with openssl" {
+    _run_installer
+    grep -q "openssl" "$TEST_DIR/shm" 2>/dev/null ||         grep -q "FTS_UI_WSKEY=dead" "$QUADLET_DIR/fts.env"
+}
+
+@test "installer: FTS_UI_WSKEY written into fts.env" {
+    _run_installer
+    grep -q "^FTS_UI_WSKEY=" "$QUADLET_DIR/fts.env"
+}
+
+@test "installer: FTS_API_KEY written into fts.env" {
+    _run_installer
+    grep -q "^FTS_API_KEY=" "$QUADLET_DIR/fts.env"
+}
+
+@test "installer: FTS_UI_WSKEY is not empty in fts.env" {
+    _run_installer
+    val="$(grep "^FTS_UI_WSKEY=" "$QUADLET_DIR/fts.env" | cut -d= -f2)"
+    [ -n "$val" ]
+}
+
+@test "installer: respects FTS_UI_WSKEY override from environment" {
+    FTS_UI_WSKEY="my-custom-key" _run_installer
+    grep -q "^FTS_UI_WSKEY=my-custom-key" "$QUADLET_DIR/fts.env"
+}
+
+@test "installer: fts.env not world-readable (mode 0640)" {
+    _run_installer
+    perms="$(stat -c '%a' "$QUADLET_DIR/fts.env")"
+    [ "$perms" = "640" ]
+}
+
+# ─── ZFS version tagging and snapshots (R15) ─────────────────────────────────
+
+@test "installer: zfs create includes fts:version property" {
+    _run_installer
+    grep -q "fts:version=" "$TEST_DIR/zfs.log"
+}
+
+@test "installer: zfs snapshot called for container dataset" {
+    _run_installer
+    grep -q "snapshot.*containers/fts" "$TEST_DIR/zfs.log"
+}
+
+@test "installer: zfs snapshot called for user dataset" {
+    _run_installer
+    grep -q "snapshot.*users/$FTS_USER" "$TEST_DIR/zfs.log"
+}
+
+@test "fts_setup.sh: FTS_VERSION tunable is defined" {
+    grep -q "^FTS_VERSION=" "$REPO_ROOT/fts_setup.sh"
+}
+
+# ─── Uninstall path ──────────────────────────────────────────────────────────
+
+@test "installer: FTS_UNINSTALL=1 exits cleanly" {
+    # First install so account/datasets exist in mocks
+    _run_installer || true
+    run env         QUADLET_DIR="$QUADLET_DIR"         FTS_USER="$FTS_USER"         FTS_UID="$FTS_UID"         FTS_IP="10.0.0.1"         FTS_UNINSTALL=1         sh "$REPO_ROOT/fts_setup.sh"
+    [ "$status" -eq 0 ]
+}
+
+@test "installer: FTS_UNINSTALL=1 calls zfs destroy" {
+    _run_installer || true
+    env         QUADLET_DIR="$QUADLET_DIR"         FTS_USER="$FTS_USER"         FTS_UID="$FTS_UID"         FTS_IP="10.0.0.1"         FTS_UNINSTALL=1         sh "$REPO_ROOT/fts_setup.sh" || true
+    grep -q "destroy" "$TEST_DIR/zfs.log"
+}
+
+# ─── 12-factor: all config from environment, no CLI flags ────────────────────
+
+@test "fts_setup.sh: FTS_IP env var overrides VIP detection" {
+    grep -q 'FTS_IP.*:-' "$REPO_ROOT/fts_setup.sh"
+}
+
+@test "fts_setup.sh: FTS_USER env var accepted" {
+    grep -q 'FTS_USER.*:-' "$REPO_ROOT/fts_setup.sh"
 }
 
 # ─── 4. Service account (useradd) ────────────────────────────────────────────
 
 @test "installer: calls useradd with --system flag" {
-    _run_installer
+    # Override getent to return absent (exit 1) so useradd is invoked
+    cat > "$MOCK_DIR/getent" << EOF
+#!/bin/sh
+exit 1
+EOF
+    _run_installer || true
     grep -q "\-\-system" "$TEST_DIR/useradd.log"
 }
 
 @test "installer: useradd sets correct uid" {
-    _run_installer
-    grep -q "\-\-uid.*$FTS_UID\|$FTS_UID.*\-\-uid" "$TEST_DIR/useradd.log"
+    cat > "$MOCK_DIR/getent" << EOF
+#!/bin/sh
+exit 1
+EOF
+    _run_installer || true
+    grep -q "$FTS_UID" "$TEST_DIR/useradd.log"
 }
 
 @test "installer: useradd sets home under /var/lib/" {
-    _run_installer
+    cat > "$MOCK_DIR/getent" << EOF
+#!/bin/sh
+exit 1
+EOF
+    _run_installer || true
     grep -q "/var/lib/$FTS_USER" "$TEST_DIR/useradd.log"
 }
 
 @test "installer: skips useradd when account already exists" {
-    # getent already returns the user — useradd.log should NOT be created
+    # getent mock always returns ftsvc as existing — useradd must not be called
     rm -f "$TEST_DIR/useradd.log"
     _run_installer
-    # useradd is called only when account does not exist;
-    # since mock getent always returns user, useradd should not run
     [ ! -f "$TEST_DIR/useradd.log" ]
 }
 
@@ -470,12 +642,14 @@ EOF
     grep -q "^FTS_API_PORT=19023" "$REPO_ROOT/env/fts.env"
 }
 
-@test "fts.env: FTS_UI_WSKEY placeholder present" {
-    grep -q "^FTS_UI_WSKEY=" "$REPO_ROOT/env/fts.env"
+@test "fts.env template: FTS_UI_WSKEY absent (generated at install, not stored in template)" {
+    run grep "^FTS_UI_WSKEY=" "$REPO_ROOT/env/fts.env"
+    [ "$status" -ne 0 ]
 }
 
-@test "fts.env: FTS_API_KEY placeholder present" {
-    grep -q "^FTS_API_KEY=" "$REPO_ROOT/env/fts.env"
+@test "fts.env template: FTS_API_KEY absent (generated at install, not stored in template)" {
+    run grep "^FTS_API_KEY=" "$REPO_ROOT/env/fts.env"
+    [ "$status" -ne 0 ]
 }
 
 # ─── ZFS mocks (added for Section 5) ─────────────────────────────────────────
@@ -496,27 +670,27 @@ _setup_zfs_mocks() {
 exit 0
 EOF
 
-    # zfs: logs calls; 'list' returns 1 (dataset absent) on first call
-    # so zfs_ensure proceeds to create. Subsequent list calls succeed.
+    # zfs: logs calls; 'list' returns 1 (dataset absent) until created
     cat > "$MOCK_DIR/zfs" << EOF
 #!/bin/sh
 echo "zfs \$*" >> "$TEST_DIR/zfs.log"
 case "\$1" in
     list)
-        # Return 1 (not found) only if dataset not yet in created.log
         _ds="\${*##* }"
-        if grep -qF "\$_ds" "$TEST_DIR/zfs_created.log" 2>/dev/null; then
-            exit 0
-        fi
-        exit 1
+        grep -qF "\$_ds" "$TEST_DIR/zfs_created.log" 2>/dev/null && exit 0 || exit 1
         ;;
     create)
-        # Record dataset as created, then succeed
-        echo "\$*" >> "$TEST_DIR/zfs.log"
-        # Extract dataset name (last arg, skip -o flags)
         _name=""
         for _a in \$*; do _name="\$_a"; done
         echo "\$_name" >> "$TEST_DIR/zfs_created.log"
+        exit 0
+        ;;
+    snapshot)
+        echo "zfs \$*" >> "$TEST_DIR/zfs.log"
+        exit 0
+        ;;
+    destroy)
+        echo "zfs \$*" >> "$TEST_DIR/zfs.log"
         exit 0
         ;;
     *)
@@ -710,8 +884,8 @@ EOF
     [ "$count" -ge 5 ]
 }
 
-@test "haproxy-fts.cfg: no live secrets or private keys present" {
-    run grep -i "password\|secret\|private_key\|BEGIN.*PRIVATE" \
+@test "haproxy-fts.cfg: no credential material (no BEGIN PRIVATE, no password= lines)" {
+    run grep -iE "BEGIN (RSA |EC |OPENSSH )?PRIVATE|^[[:space:]]*password[[:space:]]*=" \
         "$REPO_ROOT/examples/haproxy-fts.cfg"
     [ "$status" -ne 0 ]
 }

@@ -137,14 +137,14 @@
 
 <header>
   <h1><span>fts</span>-quadlet-setup</h1>
-  <div class="meta">Da Planet Security &middot; Albany, NY &middot; v1.0.0</div>
+  <div class="meta">Da Planet Security &middot; Albany, NY &middot; v2.0.0</div>
   <div class="badges">
-    <span class="badge green">v1.0.0</span>
+    <span class="badge green">v2.0.0</span>
     <span class="badge green">rootless</span>
     <span class="badge blue">BSD 2-Clause</span>
     <span class="badge amber">POSIX sh</span>
     <span class="badge green">ShellCheck clean</span>
-    <span class="badge blue">2026.QA.v1 &mdash; 8 rules</span>
+    <span class="badge blue">2026.QA.v1 &mdash; 15 rules</span>
   </div>
 </header>
 
@@ -156,7 +156,7 @@
     <div class="card"><div class="card-title">Scope</div><div class="card-val">systemctl --user</div></div>
     <div class="card"><div class="card-title">Proxy</div><div class="card-val">HAProxy vhost</div></div>
     <div class="card"><div class="card-title">Images</div><div class="card-val">ghcr.io/freetakteam</div></div>
-    <div class="card"><div class="card-title">Tests</div><div class="card-val">bats 60+ assertions</div></div>
+    <div class="card"><div class="card-title">Tests</div><div class="card-val">bats 72+ assertions</div></div>
   </div>
 </section>
 
@@ -203,7 +203,7 @@
 </section>
 
 <section>
-  <h2>QA compliance &mdash; 2026.QA.v1 &mdash; 8 rules, 60+ bats tests</h2>
+  <h2>QA compliance &mdash; 2026.QA.v1 &mdash; 15 rules, 72+ bats tests</h2>
   <table>
     <thead><tr><th>Rule</th><th>Requirement</th><th>Status</th></tr></thead>
     <tbody>
@@ -215,6 +215,13 @@
       <tr><td class="rule">R06</td><td class="plain">ZFS datasets provisioned before account creation; idempotent create</td><td class="pass">&#10003; PASS</td></tr>
       <tr><td class="rule">R07</td><td class="plain">EnvironmentFile uses %h specifier; WantedBy=default.target (not multi-user)</td><td class="pass">&#10003; PASS</td></tr>
       <tr><td class="rule">R08</td><td class="plain">CoT SSL (8089) is TCP passthrough — HAProxy must not terminate TLS</td><td class="pass">&#10003; PASS</td></tr>
+      <tr><td class="rule">R09</td><td class="plain">Secrets generated with <code>openssl rand -hex 32</code>; stored in <code>/dev/shm</code> mktemp namespace; never prompted or hardcoded</td><td class="pass">&#10003; PASS</td></tr>
+      <tr><td class="rule">R10</td><td class="plain">VIP auto-detected by default; all tunables overridable as env vars at runtime; no CLI flags</td><td class="pass">&#10003; PASS</td></tr>
+      <tr><td class="rule">R11</td><td class="plain">No Makefile — installer is the deployment truth; <code>curl | doas sh</code> is the install path</td><td class="pass">&#10003; PASS</td></tr>
+      <tr><td class="rule">R12</td><td class="plain">Lint and test in CI pipeline; fixes via pull requests; no Makefile test targets</td><td class="pass">&#10003; PASS</td></tr>
+      <tr><td class="rule">R13</td><td class="plain">README and index.html kept in sync; CHANGELOG not duplicated into TODO</td><td class="pass">&#10003; PASS</td></tr>
+      <tr><td class="rule">R14</td><td class="plain">Semantic versioning; 12-factor config (all env vars, no baked-in config)</td><td class="pass">&#10003; PASS</td></tr>
+      <tr><td class="rule">R15</td><td class="plain">ZFS datasets tagged with <code>fts:version</code> and snapshotted at install</td><td class="pass">&#10003; PASS</td></tr>
     </tbody>
   </table>
 </section>
@@ -234,7 +241,9 @@
 <span class="rule-text">You are a senior infrastructure automation engineer producing production-grade POSIX sh scripts for hardened Linux environments running rootless Podman Quadlets under systemd. Every script you generate will be reviewed by a QA engineer before deployment. Treat QA review as a first-class output requirement. This prompt is cumulative — it encodes lessons from all prior review cycles.</span>
 
 <span class="section-head">## VERSION HISTORY</span>
-<span class="rule-text">v1.0 — Initial QA rules for fts-quadlet-setup (8 rules)</span>
+<span class="rule-text">v1.0 — Initial QA rules for fts-quadlet-setup (8 rules)
+v1.1 — R09–R15: secrets, VIP, no Makefile, CI-only testing, docs sync, semver, ZFS tagging
+v1.1 — R09–R15: secrets, VIP, no Makefile, CI-only testing, docs sync, semver, ZFS tagging</span>
 
 <span class="section-head">## CORRECTNESS RULES</span>
 
@@ -310,7 +319,7 @@ Do not skip any section. The smoke test is mandatory. Do not skip the bus socket
   <table>
     <thead><tr><th>Version</th><th>Change</th></tr></thead>
     <tbody>
-      <tr><td class="rule">v1.0.0</td><td class="plain">Initial release — ZFS datasets, rootless useradd service account, machinectl delegation, linger, user-scoped quadlets, HAProxy *.tak.dapla.net vhosts, 60+ bats tests, GitHub Pages + CI</td></tr>
+      <tr><td class="rule">v2.0.0</td><td class="plain">Initial release — ZFS datasets, rootless useradd service account, machinectl delegation, linger, user-scoped quadlets, HAProxy *.tak.dapla.net vhosts, 60+ bats tests, GitHub Pages + CI</td></tr>
     </tbody>
   </table>
 </section>
@@ -345,7 +354,7 @@ Do not skip any section. The smoke test is mandatory. Do not skip the bus socket
 <footer>
   <a href="fts_setup.sh">fts_setup.sh</a> &nbsp;&middot;&nbsp;
   <a href="https://github.com/denzuko/fts-quadlet-setup">GitHub</a> &nbsp;&middot;&nbsp;
-  <a href="https://github.com/denzuko/fts-quadlet-setup/releases/tag/v1.0.0">v1.0.0</a> &nbsp;&middot;&nbsp;
+  <a href="https://github.com/denzuko/fts-quadlet-setup/releases/tag/v2.0.0">v2.0.0</a> &nbsp;&middot;&nbsp;
   <a href="https://github.com/denzuko/fts-quadlet-setup/blob/main/examples/haproxy-fts.cfg">haproxy-fts.cfg</a> &nbsp;&middot;&nbsp;
   <a href="https://github.com/denzuko/pbx-quadlet-setup">pbx-quadlet-setup</a>
   <br><br>
@@ -359,6 +368,7 @@ You are a senior infrastructure automation engineer producing production-grade P
 
 ## VERSION HISTORY
 v1.0 — Initial QA rules for fts-quadlet-setup (8 rules)
+v1.1 — R09–R15: secrets, VIP, no Makefile, CI-only testing, docs sync, semver, ZFS tagging
 
 ## CORRECTNESS RULES
 

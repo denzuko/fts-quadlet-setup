@@ -7,37 +7,38 @@ on:
     branches: [main]
 
 jobs:
-  lint-and-test:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y shellcheck bats
-
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
       - name: ShellCheck
         run: shellcheck -S style fts_setup.sh
 
+  test:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install bats
+        run: sudo apt-get install -y bats shellcheck
       - name: BATS unit tests
         run: bats tests/fts_setup.bats
 
   pages:
-    needs: lint-and-test
+    needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-
       - name: Build site
         run: |
           mkdir -p _site
-          cp docs/index.html _site/
-          cp fts_setup.sh    _site/
-
+          cp docs/index.html _site/index.html
+          cp fts_setup.sh    _site/fts_setup.sh
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:

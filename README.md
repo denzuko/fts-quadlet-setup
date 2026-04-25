@@ -1,118 +1,95 @@
 # fts-quadlet-setup
 
-Podman Quadlet deployment of [FreeTAKServer](https://github.com/FreeTAKTeam/FreeTakServer)
-following the conventions established in [pbx-quadlet-setup](https://github.com/denzuko/pbx-quadlet-setup).
+FreeTAKServer deployed as rootless Podman Quadlet units under systemd.
+ZFS-backed, service-account-isolated, HAProxy-fronted on `*.tak.dapla.net`.
 
-## Layout
-
-```
-fts-quadlet-setup/
-├── fts_setup.sh              # Bootstrap installer (mirrors pbx_setup.sh)
-├── containers/
-│   ├── freetakserver.container     # FTS core quadlet unit
-│   └── freetakserver-ui.container  # FTS web UI quadlet unit
-├── networks/
-│   └── fts.network                 # Isolated bridge network
-├── volumes/
-│   ├── fts-data.volume             # Core persistent data
-│   └── fts-ui-data.volume          # UI persistent data
-└── env/
-    └── fts.env                     # Site-local configuration
-```
-
-## Testing
+## Install
 
 ```sh
-# Lint only
-make lint
-
-# Full suite (lint + bats)
-make test
-
-# Direct bats invocation
-bats tests/fts_setup.bats
-
-# Verbose output per-test
-bats --tap tests/fts_setup.bats
+curl -fsSL https://denzuko.github.io/fts-quadlet-setup/fts_setup.sh | doas sh
 ```
 
-**Requirements:** `bats-core >= 1.7`, `shellcheck`. No live podman or systemd needed — all system calls are stubbed via `$MOCK_DIR` on `$PATH`.
-
-Test coverage spans 10 categories (50+ assertions):
-
-1. `shellcheck` lint at both error and style severity
-2. Network unit content (NetworkName, Driver, subnet)
-3. Volume unit content (VolumeName declarations)
-4. Core container unit (image ref, ports, volume mount, health check, security posture)
-5. UI container unit (Requires= ordering, DNS-name upstream, volume, hardening)
-6. `fts.env` defaults (all required keys present)
-7. Installer behavior (file placement, IP injection, systemctl calls)
-8. Idempotency (operator edits to `fts.env` survive re-runs)
-9. No Docker Hub references (GHCR only)
-10. SELinux `:Z` volume labels
-
-## Quick Start
+Override any default at runtime via environment variables:
 
 ```sh
-# Clone and deploy
-git clone https://github.com/denzuko/fts-quadlet-setup
-cd fts-quadlet-setup
-
-# Install (auto-detects external IP)
-FTS_IP=192.0.2.10 sudo sh fts_setup.sh
-
-# Or explicit flag
-sudo sh fts_setup.sh --ip 192.0.2.10
+curl -fsSL https://denzuko.github.io/fts-quadlet-setup/fts_setup.sh \
+    | doas env FTS_USER=freetak FTS_POOL=tank sh
 ```
 
-## Ports
-
-| Service         | Port  | Protocol | Purpose                     |
-|----------------|-------|----------|-----------------------------|
-| CoT TCP         | 8087  | TCP      | ATAK client streaming       |
-| CoT SSL         | 8089  | TCP      | ATAK SSL streaming          |
-| HTTP/data pkgs  | 8080  | TCP      | Data package server         |
-| HTTPS           | 8443  | TCP      | HTTPS                       |
-| REST API        | 19023 | TCP      | REST API / management       |
-| Federation      | 9000  | TCP      | Server-to-server federation |
-| Web UI          | 5000  | TCP      | Browser management UI       |
-
-## Post-Install
-
-Edit `/etc/containers/systemd/fts.env` and set:
+## Uninstall
 
 ```sh
-FTS_UI_WSKEY=<random-string>
-FTS_API_KEY=<bearer-token>
+curl -fsSL https://denzuko.github.io/fts-quadlet-setup/fts_setup.sh \
+    | doas env FTS_UNINSTALL=1 sh
 ```
 
-Then restart the UI:
+## Configuration defaults
 
-```sh
-systemctl restart freetakserver-ui.service
+All tunables are environment variables. Pass at runtime to override.
+
+| Variable | Default | Description |
+|---|---|---|
+| `FTS_IP` | auto-detected | Host VIP via `ip route` |
+| `FTS_USER` | `ftsvc` | Service account name |
+| `FTS_UID` | `2001` | Service account UID |
+| `ZFS_POOL` | `storage` | ZFS pool name |
+| `FTS_VERSION` | `2.0.0` | Release version tag (used on ZFS datasets) |
+| `IMAGE_CORE` | `ghcr.io/freetakteam/freetakserver:latest` | Core image |
+| `IMAGE_UI` | `ghcr.io/freetakteam/ui:latest` | UI image |
+| `FTS_UI_WSKEY` | generated | WebSocket key — `openssl rand -hex 32` |
+| `FTS_API_KEY` | generated | Bearer token — `openssl rand -hex 32` |
+| `FTS_COT_PORT` | `8087` | CoT TCP |
+| `FTS_COT_PORT_S` | `8089` | CoT SSL |
+| `FTS_API_PORT` | `19023` | REST API |
+| `FTS_HTTP_PORT` | `8080` | HTTP / data packages |
+| `FTS_HTTPS_PORT` | `8443` | HTTPS |
+| `FTS_FED_PORT` | `9000` | Federation |
+| `FTS_UI_PORT` | `5000` | Web UI |
+| `BUS_TIMEOUT` | `30` | D-Bus socket poll timeout (seconds) |
+| `FTS_UNINSTALL` | `0` | Set to `1` to remove everything |
+
+## Secrets
+
+`FTS_UI_WSKEY` and `FTS_API_KEY` are generated with `openssl rand -hex 32` at install time. They are stored in a per-installation tmpfs namespace under `/dev/shm/fts-<user>.<random>/` and written into the quadlet env file. The `/dev/shm` directory is cleared on reboot by design. Copy the values from the secret namespace immediately after install if you need to record them.
+
+## ZFS datasets
+
+```
+storage/containers/fts   mountpoint=/srv/fts        compression=lz4 atime=off
+storage/users/ftsvc      mountpoint=/var/lib/ftsvc  compression=lz4 atime=off
 ```
 
-## Management
+Each dataset is tagged with `fts:version=<release>` and snapshotted at install as `@install-v<version>-<date>`.
+
+## Operations
 
 ```sh
 # Status
-systemctl status freetakserver.service freetakserver-ui.service
+machinectl shell ftsvc@ -- systemctl --user status freetakserver.service
 
 # Logs
-journalctl -u freetakserver.service -f
-journalctl -u freetakserver-ui.service -f
+machinectl shell ftsvc@ -- journalctl --user -u freetakserver.service -f
 
 # Restart
-systemctl restart freetakserver.service
+machinectl shell ftsvc@ -- systemctl --user restart freetakserver-ui.service
 
-# Auto-update images (podman-auto-update must be running)
-podman auto-update --dry-run
+# Image update
+machinectl shell ftsvc@ -- podman auto-update
 ```
 
-## Security Notes
+## HAProxy
 
-- Both containers run with `DropCapability=ALL` and `NoNewPrivileges=true`
-- Inter-container traffic stays on the `fts` bridge (10.89.2.0/24), off the host network stack
-- `fts.env` is installed mode 0640 — restrict to root + a service group as appropriate
-- Set `FTS_CLIENT_CERT_REQUIRED=True` in `fts.env` for production TAK PKI enforcement
-- Rotate `FTS_UI_WSKEY` and `FTS_API_KEY` before going live
+See `examples/haproxy-fts.cfg` for additive stanzas to drop into the dapla.net HAProxy config. TCP passthrough is used for CoT SSL (8089) — HAProxy must not terminate TLS, as FTS manages its own PKI for ATAK client cert auth.
+
+## Development
+
+Lint and test run in CI on every push and PR. Fixes are submitted via pull request.
+
+```sh
+shellcheck -S style fts_setup.sh
+bats tests/fts_setup.bats
+```
+
+## License
+
+BSD 2-Clause — © 2026 Dwight Spencer / Da Planet Security

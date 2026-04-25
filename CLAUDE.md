@@ -46,6 +46,8 @@ All quadlet files land in `/etc/containers/systemd/` on the target host.
 ## Key Conventions (match pbx-quadlet-setup exactly)
 
 - **ZFS datasets:** Always provisioned before account creation. Convention:
+  - Tagged with `fts:version=$FTS_VERSION`
+  - Snapshotted at install: `@install-v<version>-<date>`
   - `$POOL/containers/<name>` with `-o mountpoint=/srv/<name>`
   - `$POOL/users/<name>` with `-o mountpoint=/var/lib/<name>`
   - Properties: `compression=lz4`, `atime=off`
@@ -149,7 +151,13 @@ automatically — operators copy the relevant blocks into the live
 
 ## What Claude Should Not Do
 
-- Do not use `--create-home` with `useradd` — the ZFS dataset serves as home.
+- Do not use `--create-home` with `useradd`
+- Do not generate secrets with anything other than `openssl rand -hex 32`
+- Do not store secrets in `env/fts.env` (template) — they are generated at install into the live env file
+- Do not store secrets anywhere other than `/dev/shm/<mktemp -d namespace>` and the live `fts.env`
+- Do not add CLI flag parsing (`--flags`) to the installer; all config via environment variables
+- Do not add a Makefile or any build tooling — installer is the truth
+- Do not replicate CHANGELOG entries into TODO — TODO is future-only — the ZFS dataset serves as home.
 - Do not create datasets with `zfs create -p` when parent datasets need explicit creation.
 - Do not use `docker-compose` or `podman-compose` — this project is
   quadlet-native.
