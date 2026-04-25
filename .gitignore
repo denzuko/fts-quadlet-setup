@@ -1,0 +1,11 @@
+# Test artifacts
+/tmp/fts-bats-*
+
+# Editor cruft
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Local env overrides — never commit site secrets
+fts.env.local

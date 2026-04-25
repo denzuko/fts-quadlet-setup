@@ -1,0 +1,10 @@
+# /etc/containers/systemd/fts-ui-data.volume
+# Persistent data volume for FreeTAKServer UI (SQLite + uploads)
+
+[Unit]
+Description=FreeTAKServer UI data volume
+
+[Volume]
+VolumeName=fts-ui-data
+Label=app=freetakserver
+Label=component=ui

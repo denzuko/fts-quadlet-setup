@@ -1,0 +1,13 @@
+# /etc/containers/systemd/fts.network
+# FreeTAKServer isolated backend network
+# mirrors pbx-quadlet-setup network convention
+
+[Unit]
+Description=FreeTAKServer internal network
+
+[Network]
+NetworkName=fts
+Driver=bridge
+Subnet=10.89.2.0/24
+Gateway=10.89.2.1
+Label=app=freetakserver

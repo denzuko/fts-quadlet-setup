@@ -1,0 +1,74 @@
+# /etc/containers/systemd/freetakserver.container
+# FreeTAKServer core — Podman Quadlet (systemd-native)
+# Mirrors the pbx-quadlet-setup deployment pattern:
+#   - rootful systemd unit (drop in /etc/containers/systemd/)
+#   - EnvironmentFile from adjacent .env
+#   - Named volume + named network, no bind mounts
+#   - journald log driver (implicit via quadlet)
+#   - AutoUpdate=registry for OCI image tracking
+#
+# After dropping this file, run:
+#   systemctl daemon-reload
+#   systemctl start freetakserver.service
+
+[Unit]
+Description=FreeTAKServer - Open Source TAK Server
+Documentation=https://freetakteam.github.io/FreeTAKServer-User-Docs/
+After=network-online.target fts-data-volume.service fts-network.service
+Wants=network-online.target fts-data-volume.service fts-network.service
+
+[Container]
+ContainerName=freetakserver
+Image=ghcr.io/freetakteam/freetakserver:latest
+AutoUpdate=registry
+
+# Site-local environment (operator-managed)
+EnvironmentFile=/etc/containers/systemd/fts.env
+
+# Dynamic external IP injection (mirrors README_DOCKER pattern)
+# Override FTS_DP_ADDRESS in fts.env if static IP/FQDN is preferred.
+Environment=FTS_DP_ADDRESS=%E{FTS_IP}
+
+# Persistent data
+Volume=fts-data.volume:/opt/FTSData:Z
+
+# Internal network only — no direct host-network exposure for inter-container traffic
+Network=fts.network
+
+# Published ports — TAK clients hit these directly
+# CoT TCP streaming
+PublishPort=8087:8087
+# CoT SSL streaming
+PublishPort=8089:8089
+# HTTP / data packages
+PublishPort=8080:8080
+# HTTPS
+PublishPort=8443:8443
+# REST API
+PublishPort=19023:19023
+# Federation
+PublishPort=9000:9000
+
+# Health probe via REST API status endpoint
+HealthCmd=curl -sf http://localhost:19023/SystemStatus/getStatus
+HealthInterval=30s
+HealthTimeout=10s
+HealthRetries=3
+HealthStartPeriod=60s
+
+# Security posture
+# Drop all caps; FTS runs as non-root inside the image
+DropCapability=ALL
+NoNewPrivileges=true
+ReadOnly=false
+
+Label=app=freetakserver
+Label=component=core
+
+[Service]
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target default.target

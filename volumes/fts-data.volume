@@ -1,0 +1,11 @@
+# /etc/containers/systemd/fts-data.volume
+# Persistent data volume for FreeTAKServer core
+# All FTS state: SQLite DB, certs, data packages, ExCheck lists
+
+[Unit]
+Description=FreeTAKServer core data volume
+
+[Volume]
+VolumeName=fts-data
+Label=app=freetakserver
+Label=component=core
