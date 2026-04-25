@@ -6,6 +6,15 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [2.0.1] — 2026-04-25
+
+### Fixed
+- `examples/haproxy-fts.cfg`: HAProxy terminates TLS for all services. CoT SSL (8089) and federation (9000) frontends now use `ssl crt /etc/haproxy/certs/dapla_stack.pem` on bind; backend server lines remain plain (no `ssl` keyword). CoT TCP (8087) stays plain passthrough — no TLS in that protocol. `FTS_CLIENT_CERT_REQUIRED=False` required since client cert auth is handled externally.
+- QA rule R08 inverted: was "no TLS termination at HAProxy"; now "HAProxy terminates ALL TLS, containers receive plain"
+- `tests/fts_setup.bats`: R08 tests updated — assert `ssl crt` on CoT SSL and federation bind lines; assert no double-TLS on backend server lines
+- `docs/index.html`: ports table, compliance table, and QA prompt R08 updated
+- `CLAUDE.md`: HAProxy TLS model clarified
+
 ## [2.0.0] — 2026-04-25
 
 ### Added

@@ -890,11 +890,17 @@ EOF
     [ "$status" -ne 0 ]
 }
 
-@test "haproxy-fts.cfg: CoT SSL backend passes through (no ssl termination)" {
-    # HAProxy must NOT terminate TLS on cots backend — FTS owns its PKI
-    run grep -A5 "backend fts_cots_back" "$REPO_ROOT/examples/haproxy-fts.cfg"
-    echo "$output" | run grep -v "ssl"
-    # ssl keyword must not appear in the cots backend server line
+@test "haproxy-fts.cfg: CoT SSL frontend terminates TLS (ssl crt on bind)" {
+    # HAProxy terminates TLS — bind must carry ssl crt
+    grep -q "bind.*8089.*ssl crt" "$REPO_ROOT/examples/haproxy-fts.cfg"
+}
+
+@test "haproxy-fts.cfg: CoT SSL backend server line is plain (no ssl, no double-TLS)" {
+    # Container receives plain — no ssl keyword on the backend server line
     run grep "server.*node1.*8089.*ssl" "$REPO_ROOT/examples/haproxy-fts.cfg"
     [ "$status" -ne 0 ]
+}
+
+@test "haproxy-fts.cfg: federation frontend terminates TLS (ssl crt on bind)" {
+    grep -q "bind.*9000.*ssl crt" "$REPO_ROOT/examples/haproxy-fts.cfg"
 }

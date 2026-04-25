@@ -192,11 +192,11 @@
     <thead><tr><th>Port</th><th>Proto</th><th>vHost</th><th>Service</th><th>HAProxy</th></tr></thead>
     <tbody>
       <tr><td class="label">8087</td><td class="tcp">TCP</td><td><code>cot.tak.dapla.net</code></td><td class="plain">CoT TCP streaming (ATAK/WinTAK)</td><td class="plain">TCP passthrough</td></tr>
-      <tr><td class="label">8089</td><td class="tcp">TCP</td><td><code>cots.tak.dapla.net</code></td><td class="plain">CoT SSL &mdash; FTS PKI, mTLS</td><td class="plain">TCP passthrough, no TLS termination</td></tr>
+      <tr><td class="label">8089</td><td class="tcp">TCP</td><td><code>cots.tak.dapla.net</code></td><td class="plain">CoT SSL &mdash; HAProxy terminates TLS</td><td class="plain">TLS termination, plain to container</td></tr>
       <tr><td class="label">8080</td><td class="http">HTTP</td><td><code>data.tak.dapla.net</code></td><td class="plain">Data packages / HTTP CoT relay</td><td class="plain">HTTP backend</td></tr>
-      <tr><td class="label">8443</td><td class="tcp">TCP</td><td>&mdash;</td><td class="plain">HTTPS direct</td><td class="plain">&mdash;</td></tr>
+      <tr><td class="label">8443</td><td class="tcp">TCP</td><td>&mdash;</td><td class="plain">HTTPS (via frontend http :443)</td><td class="plain">TLS termination at HAProxy</td></tr>
       <tr><td class="label">19023</td><td class="http">HTTP</td><td><code>tak.dapla.net</code></td><td class="plain">REST API</td><td class="plain">HTTP backend + health check</td></tr>
-      <tr><td class="label">9000</td><td class="tcp">TCP</td><td><code>fed.tak.dapla.net</code></td><td class="plain">Server-to-server federation</td><td class="plain">TCP passthrough</td></tr>
+      <tr><td class="label">9000</td><td class="tcp">TCP</td><td><code>fed.tak.dapla.net</code></td><td class="plain">Server-to-server federation</td><td class="plain">TLS termination, plain to container</td></tr>
       <tr><td class="label">5000</td><td class="http">HTTP</td><td><code>ui.tak.dapla.net</code></td><td class="plain">Web UI</td><td class="plain">HTTP backend</td></tr>
     </tbody>
   </table>
@@ -214,7 +214,7 @@
       <tr><td class="rule">R05</td><td class="plain">Images pulled into rootless store via machinectl shell, not as root</td><td class="pass">&#10003; PASS</td></tr>
       <tr><td class="rule">R06</td><td class="plain">ZFS datasets provisioned before account creation; idempotent create</td><td class="pass">&#10003; PASS</td></tr>
       <tr><td class="rule">R07</td><td class="plain">EnvironmentFile uses %h specifier; WantedBy=default.target (not multi-user)</td><td class="pass">&#10003; PASS</td></tr>
-      <tr><td class="rule">R08</td><td class="plain">CoT SSL (8089) is TCP passthrough — HAProxy must not terminate TLS</td><td class="pass">&#10003; PASS</td></tr>
+      <tr><td class="rule">R08</td><td class="plain">HAProxy terminates ALL TLS — CoT SSL (8089) and federation (9000) use <code>ssl crt</code> on bind; containers receive plain traffic</td><td class="pass">&#10003; PASS</td></tr>
       <tr><td class="rule">R09</td><td class="plain">Secrets generated with <code>openssl rand -hex 32</code>; stored in <code>/dev/shm</code> mktemp namespace; never prompted or hardcoded</td><td class="pass">&#10003; PASS</td></tr>
       <tr><td class="rule">R10</td><td class="plain">VIP auto-detected by default; all tunables overridable as env vars at runtime; no CLI flags</td><td class="pass">&#10003; PASS</td></tr>
       <tr><td class="rule">R11</td><td class="plain">No Makefile — installer is the deployment truth; <code>curl | doas sh</code> is the install path</td><td class="pass">&#10003; PASS</td></tr>
@@ -412,10 +412,14 @@ WRONG: EnvironmentFile=/etc/containers/systemd/fts.env
 CORRECT: EnvironmentFile=%h/.config/containers/systemd/fts.env
          WantedBy=default.target
 
-### Rule 8 — CoT SSL is TCP passthrough; no TLS termination at HAProxy [v1.0]
-FTS manages its own PKI for ATAK mTLS enrollment. No ssl keyword on backend port 8089.
-WRONG: server node1 127.0.0.1:8089 ssl check inter 10s
-CORRECT: server node1 127.0.0.1:8089 check inter 10s
+### Rule 8 — HAProxy terminates ALL TLS; containers receive plain [v1.1]
+HAProxy presents dapla_stack.pem for all TLS services. CoT SSL (8089) and
+federation (9000) use ssl crt on the frontend bind. Containers never see TLS.
+FTS_CLIENT_CERT_REQUIRED must be False (client cert auth is external to this stack).
+WRONG: bind 192.168.88.106:8089  # no ssl — clients can't connect
+WRONG: server node1 127.0.0.1:8089 ssl check inter 10s  # double TLS
+CORRECT: bind 192.168.88.106:8089 ssl crt /etc/haproxy/certs/dapla_stack.pem
+         server node1 127.0.0.1:8089 check inter 10s
 
 ## OUTPUT FORMAT (REQUIRED SECTIONS)
 Every generated setup script must contain these sections in order, each prefixed ## SECTION N:
