@@ -30,21 +30,12 @@
   .wrap { max-width: 860px; margin: 0 auto; }
 
   /* header */
-  header {
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 1.5rem;
-    margin-bottom: 2rem;
-  }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; margin-bottom: 2rem; }
   h1 { font-size: 1.5rem; font-weight: 600; color: #e6edf3; }
   h1 span { color: var(--green); }
   .meta { color: var(--muted); font-size: 0.85rem; margin-top: 0.4rem; }
   .badges { display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
-  .badge {
-    font-size: 0.75rem;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-weight: 500;
-  }
+  .badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; font-weight: 500; }
   .badge.green { background: #1a3a2a; color: var(--green); border: 1px solid #2ea043; }
   .badge.blue  { background: #0d2744; color: var(--blue);  border: 1px solid #388bfd; }
   .badge.amber { background: #2d1f00; color: var(--amber); border: 1px solid #9e6a03; }
@@ -53,100 +44,90 @@
   /* sections */
   section { margin-bottom: 2rem; }
   h2 {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #e6edf3;
-    margin-bottom: 0.75rem;
-    padding-bottom: 0.4rem;
+    font-size: 1rem; font-weight: 600; color: #e6edf3;
+    margin-bottom: 0.75rem; padding-bottom: 0.4rem;
     border-bottom: 1px solid var(--border);
   }
 
   /* cards */
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 1rem;
-    margin-bottom: 1rem;
-  }
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 1rem;
-  }
-  .card-title {
-    font-size: 0.75rem;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 0.35rem;
-  }
-  .card-val {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--green);
-    font-family: var(--mono);
-  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; }
+  .card-title { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.35rem; }
+  .card-val { font-size: 0.95rem; font-weight: 600; color: var(--green); font-family: var(--mono); }
 
   /* code */
   pre {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 1rem;
-    overflow-x: auto;
-    font-family: var(--mono);
-    font-size: 0.82rem;
-    line-height: 1.55;
-    margin-bottom: 1rem;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    padding: 1rem; overflow-x: auto; font-family: var(--mono);
+    font-size: 0.82rem; line-height: 1.55; margin-bottom: 1rem;
   }
   .comment { color: var(--muted); }
   .cmd     { color: var(--blue); }
   .str     { color: var(--green); }
   .kw      { color: var(--amber); }
+  .bad     { color: var(--red); }
+  .ok      { color: var(--green); }
   code {
-    font-family: var(--mono);
-    font-size: 0.85em;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 0.1em 0.35em;
-    color: var(--text);
+    font-family: var(--mono); font-size: 0.85em;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 4px; padding: 0.1em 0.35em; color: var(--text);
   }
 
   /* tables */
   table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
   th {
-    text-align: left;
-    padding: 0.5rem 0.75rem;
+    text-align: left; padding: 0.5rem 0.75rem;
     border-bottom: 1px solid var(--border);
-    color: var(--muted);
-    font-weight: 500;
-    font-size: 0.78rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    color: var(--muted); font-weight: 500; font-size: 0.78rem;
+    text-transform: uppercase; letter-spacing: 0.04em;
   }
-  td {
-    padding: 0.5rem 0.75rem;
-    border-bottom: 1px solid var(--border);
-    font-family: var(--mono);
-    font-size: 0.82rem;
-  }
+  td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 0.82rem; }
   td.label { color: var(--amber); font-weight: 600; }
   td.plain { font-family: inherit; font-size: 0.875rem; color: var(--text); }
+  td.pass  { color: var(--green); font-weight: 600; font-family: inherit; }
+  td.fail  { color: var(--red);   font-weight: 600; font-family: inherit; }
+  td.rule  { color: var(--blue);  font-family: var(--mono); font-size: 0.8rem; }
   tr:last-child td { border-bottom: none; }
   tr:hover td { background: rgba(255,255,255,0.02); }
   .tcp  { color: var(--blue); }
   .http { color: var(--green); }
 
-  /* footer */
-  footer {
-    color: var(--muted);
-    font-size: 0.8rem;
-    margin-top: 3rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border);
+  /* QA prompt widget */
+  .qa-shell {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; overflow: hidden; margin-bottom: 1rem;
   }
+  .qa-header {
+    background: var(--bg); border-bottom: 1px solid var(--border);
+    padding: 0.5rem 1rem; display: flex; justify-content: space-between;
+    align-items: center;
+  }
+  .qa-label { font-size: 0.7rem; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; font-family: var(--mono); }
+  .qa-badge { font-size: 0.65rem; color: var(--amber); font-family: var(--mono); }
+  .qa-toolbar {
+    padding: 0.5rem 1rem; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .qa-content {
+    padding: 1rem; font-family: var(--mono); font-size: 0.78rem;
+    line-height: 1.65; white-space: pre-wrap; color: var(--text);
+    max-height: 420px; overflow-y: auto;
+  }
+  .section-head { color: var(--blue); font-weight: 600; }
+  .rule-text  { color: var(--text); }
+  .wrong-ex   { color: var(--red); }
+  .right-ex   { color: var(--green); }
+  .copy-btn {
+    font-family: var(--mono); font-size: 0.72rem; padding: 3px 10px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 4px; cursor: pointer; color: var(--muted);
+    transition: background 0.15s, color 0.15s;
+  }
+  .copy-btn:hover { background: var(--surface); color: var(--text); }
+  .copy-btn.copied { background: #1a3a2a; color: var(--green); border-color: #2ea043; }
+
+  /* footer */
+  footer { color: var(--muted); font-size: 0.8rem; margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); }
   a { color: var(--blue); text-decoration: none; }
   a:hover { text-decoration: underline; }
 </style>
@@ -163,6 +144,7 @@
     <span class="badge blue">BSD 2-Clause</span>
     <span class="badge amber">POSIX sh</span>
     <span class="badge green">ShellCheck clean</span>
+    <span class="badge blue">2026.QA.v1 &mdash; 8 rules</span>
   </div>
 </header>
 
@@ -189,59 +171,17 @@
 </section>
 
 <section>
-  <h2>Prerequisites</h2>
-  <table>
-    <thead><tr><th>Requirement</th><th>Detail</th></tr></thead>
-    <tbody>
-      <tr><td class="label">podman</td><td class="plain">&ge; 4.4 &mdash; quadlet generator built-in</td></tr>
-      <tr><td class="label">systemd</td><td class="plain">&ge; 252 &mdash; user-scoped quadlet support</td></tr>
-      <tr><td class="label">ZFS pool</td><td class="plain">named <code>storage</code> by default (override with <code>--pool</code>)</td></tr>
-      <tr><td class="label">machinectl</td><td class="plain">systemd-container package</td></tr>
-      <tr><td class="label">useradd</td><td class="plain">shadow-utils / passwd</td></tr>
-    </tbody>
-  </table>
-</section>
-
-<section>
   <h2>Architecture</h2>
   <table>
     <thead><tr><th>Layer</th><th>Component</th><th>Detail</th></tr></thead>
     <tbody>
-      <tr>
-        <td class="label">ZFS</td>
-        <td><code>storage/containers/fts</code></td>
-        <td class="plain">mountpoint <code>/srv/fts</code> &mdash; compression=lz4, atime=off</td>
-      </tr>
-      <tr>
-        <td class="label">ZFS</td>
-        <td><code>storage/users/ftsvc</code></td>
-        <td class="plain">mountpoint <code>/var/lib/ftsvc</code> &mdash; service account home</td>
-      </tr>
-      <tr>
-        <td class="label">Identity</td>
-        <td><code>useradd --system</code></td>
-        <td class="plain">uid 2001, --no-create-home, ZFS dataset is home</td>
-      </tr>
-      <tr>
-        <td class="label">Linger</td>
-        <td><code>loginctl enable-linger</code></td>
-        <td class="plain">user manager persists across sessions, starts on boot</td>
-      </tr>
-      <tr>
-        <td class="label">Delegation</td>
-        <td><code>machinectl shell ftsvc@</code></td>
-        <td class="plain">all user-context ops: pull, daemon-reload, enable</td>
-      </tr>
-      <tr>
-        <td class="label">Quadlet dir</td>
-        <td><code>~ftsvc/.config/containers/systemd/</code></td>
-        <td class="plain">EnvironmentFile=%h/..., WantedBy=default.target</td>
-      </tr>
-      <tr>
-        <td class="label">Network</td>
-        <td><code>fts</code> bridge</td>
-        <td class="plain">10.89.2.0/24 &mdash; inter-container DNS, isolated from host</td>
-      </tr>
+      <tr><td class="label">ZFS</td><td><code>storage/containers/fts</code></td><td class="plain">mountpoint <code>/srv/fts</code> &mdash; compression=lz4, atime=off</td></tr>
+      <tr><td class="label">ZFS</td><td><code>storage/users/ftsvc</code></td><td class="plain">mountpoint <code>/var/lib/ftsvc</code> &mdash; service account home</td></tr>
+      <tr><td class="label">Identity</td><td><code>useradd --system</code></td><td class="plain">uid 2001, --no-create-home, ZFS dataset is home</td></tr>
+      <tr><td class="label">Linger</td><td><code>loginctl enable-linger</code></td><td class="plain">user manager persists across sessions, starts on boot</td></tr>
+      <tr><td class="label">Delegation</td><td><code>machinectl shell ftsvc@</code></td><td class="plain">all user-context ops: pull, daemon-reload, enable</td></tr>
+      <tr><td class="label">Quadlet dir</td><td><code>~ftsvc/.config/containers/systemd/</code></td><td class="plain">EnvironmentFile=%h/..., WantedBy=default.target</td></tr>
+      <tr><td class="label">Network</td><td><code>fts</code> bridge</td><td class="plain">10.89.2.0/24 &mdash; inter-container DNS, isolated from host</td></tr>
     </tbody>
   </table>
 </section>
@@ -258,6 +198,119 @@
       <tr><td class="label">19023</td><td class="http">HTTP</td><td><code>tak.dapla.net</code></td><td class="plain">REST API</td><td class="plain">HTTP backend + health check</td></tr>
       <tr><td class="label">9000</td><td class="tcp">TCP</td><td><code>fed.tak.dapla.net</code></td><td class="plain">Server-to-server federation</td><td class="plain">TCP passthrough</td></tr>
       <tr><td class="label">5000</td><td class="http">HTTP</td><td><code>ui.tak.dapla.net</code></td><td class="plain">Web UI</td><td class="plain">HTTP backend</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>QA compliance &mdash; 2026.QA.v1 &mdash; 8 rules, 60+ bats tests</h2>
+  <table>
+    <thead><tr><th>Rule</th><th>Requirement</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td class="rule">R01</td><td class="plain">POSIX sh only — no bashisms, verified by shellcheck -S style</td><td class="pass">&#10003; PASS</td></tr>
+      <tr><td class="rule">R02</td><td class="plain">useradd --system --no-create-home; ZFS dataset IS the home directory</td><td class="pass">&#10003; PASS</td></tr>
+      <tr><td class="rule">R03</td><td class="plain">loginctl enable-linger verified with show-user Linger=yes assertion</td><td class="pass">&#10003; PASS</td></tr>
+      <tr><td class="rule">R04</td><td class="plain">All user-context ops via machinectl shell ftsvc@ — never sudo -u bash</td><td class="pass">&#10003; PASS</td></tr>
+      <tr><td class="rule">R05</td><td class="plain">Images pulled into rootless store via machinectl shell, not as root</td><td class="pass">&#10003; PASS</td></tr>
+      <tr><td class="rule">R06</td><td class="plain">ZFS datasets provisioned before account creation; idempotent create</td><td class="pass">&#10003; PASS</td></tr>
+      <tr><td class="rule">R07</td><td class="plain">EnvironmentFile uses %h specifier; WantedBy=default.target (not multi-user)</td><td class="pass">&#10003; PASS</td></tr>
+      <tr><td class="rule">R08</td><td class="plain">CoT SSL (8089) is TCP passthrough — HAProxy must not terminate TLS</td><td class="pass">&#10003; PASS</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>QA engineer prompt</h2>
+  <div class="qa-shell">
+    <div class="qa-header">
+      <span class="qa-label">QA Engineer &rarr; LLM Training Prompt</span>
+      <span class="qa-badge">2026.QA.v1 &middot; fts-quadlet context</span>
+    </div>
+    <div class="qa-toolbar">
+      <span class="qa-label">System / Training Instruction</span>
+      <button class="copy-btn" id="copyBtn" onclick="copyPrompt()">copy prompt</button>
+    </div>
+    <div class="qa-content" id="promptText"><span class="section-head">## ROLE</span>
+<span class="rule-text">You are a senior infrastructure automation engineer producing production-grade POSIX sh scripts for hardened Linux environments running rootless Podman Quadlets under systemd. Every script you generate will be reviewed by a QA engineer before deployment. Treat QA review as a first-class output requirement. This prompt is cumulative — it encodes lessons from all prior review cycles.</span>
+
+<span class="section-head">## VERSION HISTORY</span>
+<span class="rule-text">v1.0 — Initial QA rules for fts-quadlet-setup (8 rules)</span>
+
+<span class="section-head">## CORRECTNESS RULES</span>
+
+<span class="section-head">### Rule 1 — POSIX sh only [v1.0]</span>
+<span class="rule-text">fts_setup.sh must be #!/bin/sh. No bashisms: no [[ ]], no $EUID, no (( )), no &lt;&lt;&lt;, no local. Verify clean with: shellcheck -S style fts_setup.sh</span>
+<span class="wrong-ex">WRONG: [[ "$UID" -ne 0 ]] &amp;&amp; die "root required"</span>
+<span class="right-ex">CORRECT: [ "$(id -u)" -ne 0 ] &amp;&amp; die "root required"</span>
+
+<span class="section-head">### Rule 2 — useradd --no-create-home for ZFS-homed accounts [v1.0]</span>
+<span class="rule-text">The ZFS dataset IS the home directory. useradd must not create a plain directory that races or shadows the mount.</span>
+<span class="wrong-ex">WRONG: useradd --system --uid "$FTS_UID" --create-home --home-dir "$MNT_USER" "$FTS_USER"</span>
+<span class="right-ex">CORRECT: useradd --system --uid "$FTS_UID" --no-create-home --home-dir "$MNT_USER" "$FTS_USER"
+chown "${FTS_UID}:${FTS_UID}" "$MNT_USER"</span>
+
+<span class="section-head">### Rule 3 — Linger must be verified, not assumed [v1.0]</span>
+<span class="rule-text">loginctl enable-linger is not synchronous. Always assert Linger=yes via show-user before proceeding.</span>
+<span class="right-ex">CORRECT: loginctl enable-linger "$FTS_USER"
+loginctl show-user "$FTS_USER" 2>/dev/null | grep -q "Linger=yes" \
+    || die "Linger not active for $FTS_USER"</span>
+
+<span class="section-head">### Rule 4 — All user-context ops via machinectl shell [v1.0]</span>
+<span class="rule-text">XDG_RUNTIME_DIR and D-Bus are not available in sudo -u bash shells. Always delegate via machinectl shell user@ for systemctl --user, podman, and daemon-reload.</span>
+<span class="wrong-ex">WRONG: sudo -u "$FTS_USER" bash &lt;&lt; 'EOF'
+systemctl --user daemon-reload
+EOF</span>
+<span class="right-ex">CORRECT: machinectl shell "${FTS_USER}@" /bin/sh -c "systemctl --user daemon-reload"</span>
+
+<span class="section-head">### Rule 5 — Images pulled into rootless store, not root store [v1.0]</span>
+<span class="rule-text">Images pulled as root are in root's Podman store and invisible to the rootless ftsvc user. Always pull via machinectl shell.</span>
+<span class="wrong-ex">WRONG: podman pull ghcr.io/freetakteam/freetakserver:latest</span>
+<span class="right-ex">CORRECT: machinectl shell "${FTS_USER}@" /bin/sh -c \
+    "podman pull ghcr.io/freetakteam/freetakserver:latest"</span>
+
+<span class="section-head">### Rule 6 — ZFS datasets before account creation [v1.0]</span>
+<span class="rule-text">Dataset must exist and be mounted before useradd so --home-dir resolves to the ZFS mountpoint. Convention: storage/containers/&lt;n&gt; at /srv/&lt;n&gt;; storage/users/&lt;n&gt; at /var/lib/&lt;n&gt;. Always idempotent.</span>
+<span class="right-ex">CORRECT: zfs list "$DS_USER" &gt;/dev/null 2&gt;&amp;1 || \
+    zfs create -o mountpoint="$MNT_USER" -o compression=lz4 -o atime=off "$DS_USER"</span>
+
+<span class="section-head">### Rule 7 — Quadlet unit scope: %h and default.target [v1.0]</span>
+<span class="rule-text">User-scoped quadlet units must use %h for home-relative paths and WantedBy=default.target. multi-user.target does not exist in systemd --user mode.</span>
+<span class="wrong-ex">WRONG: EnvironmentFile=/etc/containers/systemd/fts.env
+WantedBy=multi-user.target</span>
+<span class="right-ex">CORRECT: EnvironmentFile=%h/.config/containers/systemd/fts.env
+WantedBy=default.target</span>
+
+<span class="section-head">### Rule 8 — CoT SSL is TCP passthrough; HAProxy must not terminate TLS [v1.0]</span>
+<span class="rule-text">FTS manages its own PKI for ATAK client certificate auth (mTLS enrollment). Terminating TLS at HAProxy on port 8089 breaks the certificate chain. The fts_cots frontend must be mode tcp with no ssl keyword on the backend server line.</span>
+<span class="wrong-ex">WRONG: server node1 127.0.0.1:8089 ssl check inter 10s</span>
+<span class="right-ex">CORRECT: server node1 127.0.0.1:8089 check inter 10s</span>
+
+<span class="section-head">## OUTPUT FORMAT (REQUIRED SECTIONS)</span>
+<span class="rule-text">Every generated setup script must contain these sections in order, each prefixed ## SECTION N:
+
+ 1. Tunables (FTS_IP, FTS_USER, FTS_UID, ZFS_POOL, images, BUS_TIMEOUT)
+ 2. Helpers (log, die, need, as_fts, zfs_ensure)
+ 3. Argument parsing (--ip, --user, --uid, --pool)
+ 4. Preflight checks (root, need zfs/useradd/machinectl/loginctl/systemctl/podman/curl, zpool gate)
+ 5. ZFS datasets (storage/containers/fts, storage/users/ftsvc)
+ 6. Service account creation (useradd --system --no-create-home, chown)
+ 7. Linger (loginctl enable-linger + verified assertion)
+ 8. User manager startup (systemctl start user@UID.service + bus socket poll)
+ 9. Image pull (via machinectl shell, rootless store)
+10. Quadlet unit installation (to %h/.config/containers/systemd/, owned by FTS_USER)
+11. User daemon-reload + service enable (via machinectl shell --user)
+12. Smoke test (curl REST API /SystemStatus/getStatus, up to 90s)
+
+Do not skip any section. The smoke test is mandatory. Do not skip the bus socket poll.</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Changelog</h2>
+  <table>
+    <thead><tr><th>Version</th><th>Change</th></tr></thead>
+    <tbody>
+      <tr><td class="rule">v1.0.0</td><td class="plain">Initial release — ZFS datasets, rootless useradd service account, machinectl delegation, linger, user-scoped quadlets, HAProxy *.tak.dapla.net vhosts, 60+ bats tests, GitHub Pages + CI</td></tr>
     </tbody>
   </table>
 </section>
@@ -293,12 +346,93 @@
   <a href="fts_setup.sh">fts_setup.sh</a> &nbsp;&middot;&nbsp;
   <a href="https://github.com/denzuko/fts-quadlet-setup">GitHub</a> &nbsp;&middot;&nbsp;
   <a href="https://github.com/denzuko/fts-quadlet-setup/releases/tag/v1.0.0">v1.0.0</a> &nbsp;&middot;&nbsp;
-  <a href="https://github.com/denzuko/pbx-quadlet-setup">pbx-quadlet-setup</a> &nbsp;&middot;&nbsp;
-  <a href="https://github.com/denzuko/fts-quadlet-setup/blob/main/examples/haproxy-fts.cfg">haproxy-fts.cfg</a>
+  <a href="https://github.com/denzuko/fts-quadlet-setup/blob/main/examples/haproxy-fts.cfg">haproxy-fts.cfg</a> &nbsp;&middot;&nbsp;
+  <a href="https://github.com/denzuko/pbx-quadlet-setup">pbx-quadlet-setup</a>
   <br><br>
   &copy; 2026 Dwight Spencer / Da Planet Security &mdash; BSD 2-Clause
 </footer>
 
 </div>
+<script>
+const promptRaw = `## ROLE
+You are a senior infrastructure automation engineer producing production-grade POSIX sh scripts for hardened Linux environments running rootless Podman Quadlets under systemd. Every script you generate will be reviewed by a QA engineer before deployment. Treat QA review as a first-class output requirement.
+
+## VERSION HISTORY
+v1.0 — Initial QA rules for fts-quadlet-setup (8 rules)
+
+## CORRECTNESS RULES
+
+### Rule 1 — POSIX sh only [v1.0]
+fts_setup.sh must be #!/bin/sh. No bashisms: no [[ ]], no $EUID, no (( )), no <<<, no local.
+WRONG: [[ "$UID" -ne 0 ]] && die "root required"
+CORRECT: [ "$(id -u)" -ne 0 ] && die "root required"
+
+### Rule 2 — useradd --no-create-home for ZFS-homed accounts [v1.0]
+The ZFS dataset IS the home directory. useradd must not create a plain directory.
+WRONG: useradd --system --uid "$FTS_UID" --create-home --home-dir "$MNT_USER" "$FTS_USER"
+CORRECT: useradd --system --uid "$FTS_UID" --no-create-home --home-dir "$MNT_USER" "$FTS_USER"
+         chown "${FTS_UID}:${FTS_UID}" "$MNT_USER"
+
+### Rule 3 — Linger must be verified, not assumed [v1.0]
+loginctl enable-linger is not synchronous. Assert Linger=yes via show-user.
+CORRECT: loginctl enable-linger "$FTS_USER"
+         loginctl show-user "$FTS_USER" 2>/dev/null | grep -q "Linger=yes" || die "Linger not active"
+
+### Rule 4 — All user-context ops via machinectl shell [v1.0]
+XDG_RUNTIME_DIR and D-Bus are not available in sudo -u bash shells.
+WRONG: sudo -u "$FTS_USER" bash << 'EOF'
+       systemctl --user daemon-reload
+       EOF
+CORRECT: machinectl shell "${FTS_USER}@" /bin/sh -c "systemctl --user daemon-reload"
+
+### Rule 5 — Images pulled into rootless store, not root store [v1.0]
+Images pulled as root are invisible to the rootless ftsvc user.
+WRONG: podman pull ghcr.io/freetakteam/freetakserver:latest
+CORRECT: machinectl shell "${FTS_USER}@" /bin/sh -c "podman pull ghcr.io/freetakteam/freetakserver:latest"
+
+### Rule 6 — ZFS datasets before account creation [v1.0]
+Dataset must exist and be mounted before useradd.
+Convention: storage/containers/<n> at /srv/<n>; storage/users/<n> at /var/lib/<n>. Idempotent.
+CORRECT: zfs list "$DS_USER" >/dev/null 2>&1 || \\
+             zfs create -o mountpoint="$MNT_USER" -o compression=lz4 -o atime=off "$DS_USER"
+
+### Rule 7 — Quadlet unit scope: %h and default.target [v1.0]
+WRONG: EnvironmentFile=/etc/containers/systemd/fts.env
+       WantedBy=multi-user.target
+CORRECT: EnvironmentFile=%h/.config/containers/systemd/fts.env
+         WantedBy=default.target
+
+### Rule 8 — CoT SSL is TCP passthrough; no TLS termination at HAProxy [v1.0]
+FTS manages its own PKI for ATAK mTLS enrollment. No ssl keyword on backend port 8089.
+WRONG: server node1 127.0.0.1:8089 ssl check inter 10s
+CORRECT: server node1 127.0.0.1:8089 check inter 10s
+
+## OUTPUT FORMAT (REQUIRED SECTIONS)
+Every generated setup script must contain these sections in order, each prefixed ## SECTION N:
+
+ 1. Tunables (FTS_IP, FTS_USER, FTS_UID, ZFS_POOL, images, BUS_TIMEOUT)
+ 2. Helpers (log, die, need, as_fts, zfs_ensure)
+ 3. Argument parsing (--ip, --user, --uid, --pool)
+ 4. Preflight (root check, need zfs/useradd/machinectl/loginctl/systemctl/podman/curl, zpool gate)
+ 5. ZFS datasets (storage/containers/fts + storage/users/ftsvc)
+ 6. Service account (useradd --system --no-create-home, chown)
+ 7. Linger (enable + verified assertion)
+ 8. User manager (systemctl start user@UID.service + bus socket poll)
+ 9. Image pull (via machinectl shell)
+10. Quadlet unit install (to %h/.config/containers/systemd/, owned by FTS_USER)
+11. User daemon-reload + service enable (via machinectl shell)
+12. Smoke test (curl /SystemStatus/getStatus, up to 90s)
+
+Do not skip any section. Smoke test and bus socket poll are mandatory.`;
+
+function copyPrompt() {
+  navigator.clipboard.writeText(promptRaw).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = 'copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'copy prompt'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+</script>
 </body>
 </html>
