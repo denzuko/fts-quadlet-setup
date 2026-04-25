@@ -1,45 +1,56 @@
 #!/bin/sh
-# fts_setup.sh — FreeTAKServer rootless quadlet installer
-# Mirrors pbx_setup.sh conventions from denzuko/pbx-quadlet-setup:
-#   - POSIX sh (no bashisms)
-#   - ZFS datasets for container data and service account home
-#   - Dedicated service account (useradd --system) with lingering
-#   - Rootless Podman Quadlets via machinectl shell
-#   - User-scoped unit files in ~/.config/containers/systemd/
-#   - systemctl --user for all service management
-#   - Idempotent: safe to re-run
+# fts_setup.sh — FreeTAKServer rootless quadlet installer v2.0.0
 #
-# Usage (run as root):
-#   FTS_IP=192.0.2.10 sh fts_setup.sh
-#   sh fts_setup.sh --ip 192.0.2.10 [--pool storage]
+# Intended usage:
+#   curl -fsSL https://denzuko.github.io/fts-quadlet-setup/fts_setup.sh | doas sh
+#   curl -fsSL https://denzuko.github.io/fts-quadlet-setup/fts_setup.sh | doas env FTS_USER=freetak sh
+#
+# All tunables are environment variables. Defaults are chosen for the
+# dapla.net stack; override anything at runtime — no flags, no prompts.
+#
+# Uninstall:
+#   FTS_UNINSTALL=1 sh fts_setup.sh
 #
 # Requirements:
-#   - zfs / zpool    (OpenZFS)
-#   - podman >= 4.4  (quadlet generator built-in)
-#   - systemd >= 252 (user-scoped quadlet support)
-#   - machinectl     (systemd-container or systemd package)
-#   - useradd        (shadow-utils / passwd)
+#   openssl, zfs/zpool, podman >= 4.4, systemd >= 252,
+#   machinectl, useradd, loginctl, ip, awk
 
 set -eu
 
 # ---------------------------------------------------------------------------
-# SECTION 1: Tunables
+# SECTION 1: Tunables  (all overridable via environment variables)
 # ---------------------------------------------------------------------------
-FTS_IP="${FTS_IP:-}"
+# Network
+FTS_IP="${FTS_IP:-}"                    # VIP; auto-detected if unset
+
+# Service account
 FTS_USER="${FTS_USER:-ftsvc}"
 FTS_UID="${FTS_UID:-2001}"
+
+# ZFS
 ZFS_POOL="${ZFS_POOL:-storage}"
-IMAGE_CORE="ghcr.io/freetakteam/freetakserver:latest"
-IMAGE_UI="ghcr.io/freetakteam/ui:latest"
-BUS_TIMEOUT=30
+FTS_VERSION="${FTS_VERSION:-2.0.0}"     # dataset snapshot tag
 
-# Derived dataset names (convention: pool/container/<name>, pool/users/<name>)
-DS_CONTAINER="${ZFS_POOL}/containers/fts"
-DS_USER="${ZFS_POOL}/users/${FTS_USER}"
+# Images
+IMAGE_CORE="${IMAGE_CORE:-ghcr.io/freetakteam/freetakserver:latest}"
+IMAGE_UI="${IMAGE_UI:-ghcr.io/freetakteam/ui:latest}"
 
-# Derived mount points (convention: /srv/<name>, /var/lib/<name>)
-MNT_CONTAINER="/srv/fts"
-MNT_USER="/var/lib/${FTS_USER}"
+# Secrets — generated with openssl if unset (stored in /dev/shm, not on disk)
+FTS_UI_WSKEY="${FTS_UI_WSKEY:-}"
+FTS_API_KEY="${FTS_API_KEY:-}"
+
+# Ports (12-factor: all config from environment)
+FTS_COT_PORT="${FTS_COT_PORT:-8087}"
+FTS_COT_PORT_S="${FTS_COT_PORT_S:-8089}"
+FTS_API_PORT="${FTS_API_PORT:-19023}"
+FTS_HTTP_PORT="${FTS_HTTP_PORT:-8080}"
+FTS_HTTPS_PORT="${FTS_HTTPS_PORT:-8443}"
+FTS_FED_PORT="${FTS_FED_PORT:-9000}"
+FTS_UI_PORT="${FTS_UI_PORT:-5000}"
+
+# Behaviour
+FTS_UNINSTALL="${FTS_UNINSTALL:-0}"
+BUS_TIMEOUT="${BUS_TIMEOUT:-30}"
 
 # ---------------------------------------------------------------------------
 # SECTION 2: Helpers
@@ -51,7 +62,7 @@ need() { command -v "$1" >/dev/null 2>&1 || die "$1 not found — install it fir
 # Run a command as the FTS service account via machinectl
 as_fts() { machinectl shell "${FTS_USER}@" /bin/sh -c "$*"; }
 
-# Create a ZFS dataset idempotently with standard properties
+# Create a ZFS dataset idempotently with standard properties + version tag
 # Usage: zfs_ensure <dataset> <mountpoint>
 zfs_ensure() {
     _ds="$1"
@@ -64,49 +75,32 @@ zfs_ensure() {
             -o mountpoint="$_mp" \
             -o compression=lz4 \
             -o atime=off \
+            -o "fts:version=${FTS_VERSION}" \
             "$_ds"
-        log "Dataset $_ds created"
+        log "Dataset $_ds created (fts:version=${FTS_VERSION})"
     fi
     unset _ds _mp
 }
 
-# ---------------------------------------------------------------------------
-# SECTION 3: Argument parsing
-# ---------------------------------------------------------------------------
-while [ $# -gt 0 ]; do
-    case "$1" in
-        --ip)   FTS_IP="$2";   shift 2 ;;
-        --user) FTS_USER="$2"; shift 2 ;;
-        --uid)  FTS_UID="$2";  shift 2 ;;
-        --pool) ZFS_POOL="$2"; shift 2 ;;
-        *) die "Unknown option: $1 (valid: --ip, --user, --uid, --pool)" ;;
-    esac
-done
-
-# Recompute derived names if --user or --pool were overridden
-DS_CONTAINER="${ZFS_POOL}/containers/fts"
-DS_USER="${ZFS_POOL}/users/${FTS_USER}"
-MNT_USER="/var/lib/${FTS_USER}"
-
-if [ -z "$FTS_IP" ]; then
-    printf 'FTS_IP not set — auto-detecting via ip route... '
-    FTS_IP="$(ip route get 1 | awk '{print $7; exit}')"
-    echo "$FTS_IP"
-fi
-
-log "FreeTAKServer rootless quadlet installer"
-printf '    %-18s %s\n' "FTS_IP:"     "$FTS_IP"
-printf '    %-18s %s\n' "FTS_USER:"   "$FTS_USER"
-printf '    %-18s %s\n' "FTS_UID:"    "$FTS_UID"
-printf '    %-18s %s\n' "ZFS_POOL:"   "$ZFS_POOL"
-printf '    %-18s %s\n' "DS_CONTAINER:" "$DS_CONTAINER"
-printf '    %-18s %s\n' "DS_USER:"    "$DS_USER"
+# Generate a secret with openssl, store in /dev/shm namespace
+# Usage: gen_secret <varname>
+# Sets the named variable to a 32-byte hex string; writes to shm namespace
+gen_secret() {
+    _var="$1"
+    _val="$(openssl rand -hex 32)"
+    eval "${_var}=\${_val}"
+    printf '%s\n' "$_val" > "${SHM_DIR}/${_var}"
+    chmod 0600 "${SHM_DIR}/${_var}"
+    log "Generated ${_var} (stored in ${SHM_DIR}/${_var})"
+    unset _var _val
+}
 
 # ---------------------------------------------------------------------------
-# SECTION 4: Preflight checks
+# SECTION 3: Preflight checks
 # ---------------------------------------------------------------------------
-[ "$(id -u)" -eq 0 ] || die "Must run as root (installer creates ZFS datasets and service account)"
+[ "$(id -u)" -eq 0 ] || die "Must run as root"
 
+need openssl
 need zfs
 need useradd
 need machinectl
@@ -114,44 +108,117 @@ need loginctl
 need systemctl
 need podman
 need curl
+need ip
+need awk
 
-# Verify ZFS pool exists before proceeding
 zpool list "$ZFS_POOL" >/dev/null 2>&1 \
-    || die "ZFS pool '$ZFS_POOL' not found — pass --pool <poolname>"
+    || die "ZFS pool '$ZFS_POOL' not found — set ZFS_POOL=<name>"
+
+# ---------------------------------------------------------------------------
+# SECTION 4: VIP detection
+# ---------------------------------------------------------------------------
+if [ -z "$FTS_IP" ]; then
+    FTS_IP="$(ip route get 1 2>/dev/null | awk '/src/{for(i=1;i<=NF;i++) if($i=="src") {print $(i+1); exit}}')"
+    [ -n "$FTS_IP" ] || die "VIP auto-detection failed — set FTS_IP=<address>"
+    log "VIP auto-detected: $FTS_IP"
+fi
+
+# Derived names — computed after all env is settled
+DS_CONTAINER="${ZFS_POOL}/containers/fts"
+DS_USER="${ZFS_POOL}/users/${FTS_USER}"
+MNT_CONTAINER="/srv/fts"
+MNT_USER="/var/lib/${FTS_USER}"
 
 podman_ver="$(podman --version | awk '{print $3}')"
-printf '    %-18s %s\n' "podman:" "$podman_ver"
+log "FreeTAKServer rootless quadlet installer v${FTS_VERSION}"
+printf '    %-20s %s\n' "FTS_IP:"       "$FTS_IP"
+printf '    %-20s %s\n' "FTS_USER:"     "$FTS_USER (uid $FTS_UID)"
+printf '    %-20s %s\n' "ZFS_POOL:"     "$ZFS_POOL"
+printf '    %-20s %s\n' "DS_CONTAINER:" "$DS_CONTAINER -> $MNT_CONTAINER"
+printf '    %-20s %s\n' "DS_USER:"      "$DS_USER -> $MNT_USER"
+printf '    %-20s %s\n' "podman:"       "$podman_ver"
 
 # ---------------------------------------------------------------------------
-# SECTION 5: ZFS datasets
-#
-# Convention (mirrors pbx-quadlet-setup):
-#   storage/containers/<name>  -o mountpoint=/srv/<name>   (container data)
-#   storage/users/<name>       -o mountpoint=/var/lib/<name> (service account home)
+# SECTION 5: Uninstall path
 # ---------------------------------------------------------------------------
-log "SECTION 5: ZFS datasets"
+if [ "$FTS_UNINSTALL" = "1" ]; then
+    log "Uninstalling FreeTAKServer"
 
-# Ensure parent datasets exist (idempotent -p equivalent via zfs_ensure loop)
+    # Stop and disable user services
+    as_fts "systemctl --user disable --now freetakserver.service freetakserver-ui.service" 2>/dev/null || true
+
+    # Remove OCI images, volumes, networks
+    as_fts "podman stop freetakserver freetakserver-ui 2>/dev/null; podman rm freetakserver freetakserver-ui 2>/dev/null; true"
+    as_fts "podman volume rm fts-data fts-ui-data 2>/dev/null; true"
+    as_fts "podman network rm fts 2>/dev/null; true"
+    as_fts "podman rmi ${IMAGE_CORE} ${IMAGE_UI} 2>/dev/null; true"
+
+    # Remove quadlet unit files
+    _fts_home="$(getent passwd "$FTS_USER" 2>/dev/null | cut -d: -f6)" || true
+    if [ -n "$_fts_home" ]; then
+        rm -rf "${_fts_home}/.config/containers/systemd"
+    fi
+
+    # Disable linger
+    loginctl disable-linger "$FTS_USER" 2>/dev/null || true
+
+    # Remove service account
+    userdel "$FTS_USER" 2>/dev/null || true
+
+    # Destroy ZFS datasets (children first)
+    for _ds in "$DS_USER" "$DS_CONTAINER" \
+               "${ZFS_POOL}/users" "${ZFS_POOL}/containers"; do
+        if zfs destroy "$_ds" 2>/dev/null; then log "Destroyed $_ds"; fi
+    done
+
+    # Wipe shm namespace
+    rm -rf "/dev/shm/fts-${FTS_USER}" 2>/dev/null || true
+
+    log "Uninstall complete"
+    exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# SECTION 6: Secrets — generate with openssl, store in /dev/shm namespace
+# ---------------------------------------------------------------------------
+log "SECTION 6: Secrets"
+
+# Per-installation shm namespace (isolated per service account)
+SHM_DIR="$(mktemp -d "/dev/shm/fts-${FTS_USER}.XXXXXX")"
+chmod 0700 "$SHM_DIR"
+log "Secret namespace: $SHM_DIR"
+
+# Generate any secrets that were not passed in via environment
+[ -n "$FTS_UI_WSKEY" ] || gen_secret FTS_UI_WSKEY
+[ -n "$FTS_API_KEY"  ] || gen_secret FTS_API_KEY
+
+# ---------------------------------------------------------------------------
+# SECTION 7: ZFS datasets
+# ---------------------------------------------------------------------------
+log "SECTION 7: ZFS datasets"
+
 for _parent in "${ZFS_POOL}/containers" "${ZFS_POOL}/users"; do
-    zfs list "$_parent" >/dev/null 2>&1 || zfs create "$_parent"
+    zfs list "$_parent" >/dev/null 2>&1 || zfs create -o "fts:version=${FTS_VERSION}" "$_parent"
 done
 unset _parent
 
-# Container data dataset — quadlet volumes land under /srv/fts
 zfs_ensure "$DS_CONTAINER" "$MNT_CONTAINER"
+zfs_ensure "$DS_USER"      "$MNT_USER"
 
-# Service account home dataset
-zfs_ensure "$DS_USER" "$MNT_USER"
+# Snapshot datasets at install (version-tagged)
+_snap_tag="install-v${FTS_VERSION}-$(date +%Y%m%d)"
+zfs snapshot "${DS_CONTAINER}@${_snap_tag}" 2>/dev/null || true
+zfs snapshot "${DS_USER}@${_snap_tag}"      2>/dev/null || true
+unset _snap_tag
 
 # ---------------------------------------------------------------------------
-# SECTION 6: Service account creation
+# SECTION 8: Service account
 # ---------------------------------------------------------------------------
-log "SECTION 6: Service account"
+log "SECTION 8: Service account"
 
 if getent passwd "$FTS_USER" >/dev/null 2>&1; then
     log "Account $FTS_USER already exists — skipping creation"
 else
-    log "Creating system account $FTS_USER (uid $FTS_UID)"
     useradd \
         --system \
         --uid      "$FTS_UID" \
@@ -160,43 +227,35 @@ else
         --shell    /bin/bash \
         --comment  "FreeTAKServer service account" \
         "$FTS_USER"
-    # Home directory is the ZFS dataset mountpoint — set ownership
     chown "${FTS_UID}:${FTS_UID}" "$MNT_USER"
-    log "Account $FTS_USER created (home: $MNT_USER)"
+    log "Account $FTS_USER created"
 fi
 
 FTS_HOME="$(getent passwd "$FTS_USER" | cut -d: -f6)"
 FTS_RUNTIME_UID="$(getent passwd "$FTS_USER" | cut -d: -f3)"
 QUADLET_DIR="$FTS_HOME/.config/containers/systemd"
 
-printf '    %-18s %s\n' "home:"    "$FTS_HOME"
-printf '    %-18s %s\n' "uid:"     "$FTS_RUNTIME_UID"
-printf '    %-18s %s\n' "quadlet:" "$QUADLET_DIR"
-
 # ---------------------------------------------------------------------------
-# SECTION 7: Linger — survive without active login session
+# SECTION 9: Linger
 # ---------------------------------------------------------------------------
-log "SECTION 7: Linger"
+log "SECTION 9: Linger"
 
 loginctl enable-linger "$FTS_USER"
 loginctl show-user "$FTS_USER" 2>/dev/null | grep -q "Linger=yes" \
     || die "Linger not active for $FTS_USER — check systemd-logind"
-log "Linger enabled for $FTS_USER"
 
 # ---------------------------------------------------------------------------
-# SECTION 8: Start user manager (user@UID.service)
+# SECTION 10: User manager startup
 # ---------------------------------------------------------------------------
-log "SECTION 8: User manager"
+log "SECTION 10: User manager"
 
 systemctl start "user@${FTS_RUNTIME_UID}.service" \
     || die "Failed to start user@${FTS_RUNTIME_UID}.service"
 
-log "Polling for session bus at /run/user/${FTS_RUNTIME_UID}/bus ..."
 _elapsed=0
 until [ -S "/run/user/${FTS_RUNTIME_UID}/bus" ]; do
-    if [ "$_elapsed" -ge "$BUS_TIMEOUT" ]; then
-        die "Timed out after ${BUS_TIMEOUT}s waiting for /run/user/${FTS_RUNTIME_UID}/bus"
-    fi
+    [ "$_elapsed" -ge "$BUS_TIMEOUT" ] \
+        && die "Timed out after ${BUS_TIMEOUT}s waiting for D-Bus socket"
     sleep 1
     _elapsed=$((_elapsed + 1))
 done
@@ -204,19 +263,18 @@ log "Session bus ready (${_elapsed}s)"
 unset _elapsed
 
 # ---------------------------------------------------------------------------
-# SECTION 9: Image pull (rootless store, under service account)
+# SECTION 11: Image pull (rootless store)
 # ---------------------------------------------------------------------------
-log "SECTION 9: Pulling container images (rootless store)"
+log "SECTION 11: Pulling images (rootless store)"
 as_fts "podman pull $IMAGE_CORE"
 as_fts "podman pull $IMAGE_UI"
 
 # ---------------------------------------------------------------------------
-# SECTION 10: Install quadlet unit files
+# SECTION 12: Install quadlet unit files + env
 # ---------------------------------------------------------------------------
-log "SECTION 10: Installing quadlet unit files"
+log "SECTION 12: Installing quadlet unit files"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-
 as_fts "mkdir -p $QUADLET_DIR"
 
 _install_unit() {
@@ -232,40 +290,57 @@ _install_unit "$SCRIPT_DIR/volumes/fts-ui-data.volume"
 _install_unit "$SCRIPT_DIR/containers/freetakserver.container"
 _install_unit "$SCRIPT_DIR/containers/freetakserver-ui.container"
 
-# Env file — never clobber operator edits (idempotent)
+# Write env file — generated fresh on install, never clobber if exists
 _env_dst="$QUADLET_DIR/fts.env"
 if [ ! -f "$_env_dst" ]; then
-    install -m 0640 -o "$FTS_USER" "$SCRIPT_DIR/env/fts.env" "$_env_dst"
-    log "Wrote fts.env"
+    install -m 0640 -o "$FTS_USER" /dev/null "$_env_dst"
+    cat > "$_env_dst" << ENV
+# fts.env — generated by fts_setup.sh v${FTS_VERSION} on $(date -u +%Y-%m-%dT%H:%M:%SZ)
+# Managed by: fts_setup.sh — do not edit FTS_IP, FTS_UI_WSKEY, or FTS_API_KEY by hand
+FTS_IP=${FTS_IP}
+FTS_COT_PORT=${FTS_COT_PORT}
+FTS_COT_PORT_S=${FTS_COT_PORT_S}
+FTS_API_PORT=${FTS_API_PORT}
+FTS_HTTP_PORT=${FTS_HTTP_PORT}
+FTS_HTTPS_PORT=${FTS_HTTPS_PORT}
+FTS_FED_PORT=${FTS_FED_PORT}
+FTS_UI_PORT=${FTS_UI_PORT}
+FTS_UI_WSKEY=${FTS_UI_WSKEY}
+FTS_API_KEY=${FTS_API_KEY}
+FTS_LOG_LEVEL=${FTS_LOG_LEVEL:-INFO}
+FTS_CLIENT_CERT_REQUIRED=${FTS_CLIENT_CERT_REQUIRED:-False}
+FTS_DB_PATH=/opt/FTSData/FTSDataBase.db
+FTS_UI_SQLALCHEMY_DATABASE_URI=sqlite:////home/freetak/data/FTSServer-UI.db
+ENV
+    chmod 0640 "$_env_dst"
+    log "Wrote $FTS_USER env file (secrets in $SHM_DIR)"
 else
-    log "fts.env already present — preserving operator config"
+    # Idempotent re-run: stamp IP only, preserve generated secrets
+    sed -i "s|^FTS_IP=.*|FTS_IP=${FTS_IP}|" "$_env_dst"
+    log "fts.env exists — stamped FTS_IP, preserved secrets"
 fi
-
-# Always stamp FTS_IP (safe on re-run)
-sed -i "s|^FTS_IP=.*|FTS_IP=${FTS_IP}|" "$_env_dst"
-log "FTS_IP=${FTS_IP} written to fts.env"
 unset _env_dst
 
 # ---------------------------------------------------------------------------
-# SECTION 11: Reload user systemd and enable services
+# SECTION 13: Reload user daemon + enable services
 # ---------------------------------------------------------------------------
-log "SECTION 11: Reloading user daemon and enabling services"
+log "SECTION 13: Reload and enable"
 
 as_fts "systemctl --user daemon-reload"
 as_fts "systemctl --user enable --now freetakserver.service"
 as_fts "systemctl --user enable --now freetakserver-ui.service"
 
 # ---------------------------------------------------------------------------
-# SECTION 12: Smoke test
+# SECTION 14: Smoke test
 # ---------------------------------------------------------------------------
-log "SECTION 12: REST API readiness (up to 90s)"
+log "SECTION 14: REST API readiness (up to 90s)"
 
 _tries=0
-until curl -sf "http://localhost:19023/SystemStatus/getStatus" >/dev/null 2>&1; do
+until curl -sf "http://localhost:${FTS_API_PORT}/SystemStatus/getStatus" >/dev/null 2>&1; do
     _tries=$((_tries + 1))
     if [ "$_tries" -ge 18 ]; then
         printf 'WARNING: API not responding after 90s\n' >&2
-        printf '  Check: machinectl shell %s@ -- journalctl --user -u freetakserver.service\n' \
+        printf '  Logs: machinectl shell %s@ -- journalctl --user -u freetakserver.service\n' \
             "$FTS_USER" >&2
         break
     fi
@@ -277,24 +352,21 @@ unset _tries
 # Summary
 # ---------------------------------------------------------------------------
 printf '\n'
-log "FreeTAKServer deployment complete"
+log "FreeTAKServer v${FTS_VERSION} deployment complete"
 printf '\n'
 printf '    %-22s %s\n' "Service account:"  "$FTS_USER (uid $FTS_RUNTIME_UID)"
 printf '    %-22s %s\n' "ZFS home:"         "$DS_USER -> $MNT_USER"
 printf '    %-22s %s\n' "ZFS data:"         "$DS_CONTAINER -> $MNT_CONTAINER"
 printf '    %-22s %s\n' "Quadlet dir:"      "$QUADLET_DIR"
-printf '    %-22s %s\n' "CoT TCP:"          "$FTS_IP:8087"
-printf '    %-22s %s\n' "CoT SSL:"          "$FTS_IP:8089"
-printf '    %-22s %s\n' "REST API:"         "http://$FTS_IP:19023"
-printf '    %-22s %s\n' "Web UI:"           "http://$FTS_IP:5000"
-printf '    %-22s %s\n' "Federation:"       "$FTS_IP:9000"
+printf '    %-22s %s\n' "Secret namespace:" "$SHM_DIR"
+printf '    %-22s %s\n' "CoT TCP:"          "$FTS_IP:$FTS_COT_PORT"
+printf '    %-22s %s\n' "CoT SSL:"          "$FTS_IP:$FTS_COT_PORT_S"
+printf '    %-22s %s\n' "REST API:"         "http://$FTS_IP:$FTS_API_PORT"
+printf '    %-22s %s\n' "Web UI:"           "http://$FTS_IP:$FTS_UI_PORT"
+printf '    %-22s %s\n' "Federation:"       "$FTS_IP:$FTS_FED_PORT"
 printf '\n'
-printf '    Logs:   machinectl shell %s@ -- journalctl --user -u freetakserver.service -f\n' \
-    "$FTS_USER"
-printf '    Status: machinectl shell %s@ -- systemctl --user status freetakserver.service\n' \
-    "$FTS_USER"
+printf '    Logs:   machinectl shell %s@ -- journalctl --user -u freetakserver.service -f\n' "$FTS_USER"
+printf '    Status: machinectl shell %s@ -- systemctl --user status freetakserver.service\n' "$FTS_USER"
 printf '\n'
-printf '    IMPORTANT: Rotate FTS_UI_WSKEY and FTS_API_KEY in:\n'
-printf '               %s/fts.env\n' "$QUADLET_DIR"
-printf '               then: machinectl shell %s@ -- systemctl --user restart freetakserver-ui.service\n' \
-    "$FTS_USER"
+printf '    Secrets are in %s — copy them off before reboot\n' "$SHM_DIR"
+printf '    (tmpfs — contents are lost on reboot by design)\n'
