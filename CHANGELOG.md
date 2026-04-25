@@ -6,6 +6,16 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [2.0.2] — 2026-04-25
+
+### Changed
+- Summary output replaced with inline m4 template (`share/summary.m4`)
+- `render()` helper in `fts_setup.sh` pipes `_macro()` through `m4 -D` flags — no temp files, no build step
+- `m4` added to preflight `need` checks
+- Four macros: `_preflight` (startup), `_header`, `_endpoints`, `_ops` (final summary)
+- `changequote([\`[\`], [\`]\`])` prevents label strings from being substituted by m4
+- 12 new bats assertions covering macro definitions, rendering, changequote correctness, and absence of bare `printf` summary blocks
+
 ## [2.0.1] — 2026-04-25
 
 ### Fixed

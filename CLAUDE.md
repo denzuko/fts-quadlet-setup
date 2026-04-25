@@ -157,6 +157,8 @@ automatically — operators copy the relevant blocks into the live
 - Do not store secrets anywhere other than `/dev/shm/<mktemp -d namespace>` and the live `fts.env`
 - Do not add CLI flag parsing (`--flags`) to the installer; all config via environment variables
 - Do not add a Makefile or any build tooling — installer is the truth
+- Do not use bare `printf` for summary output — use `render <macro>` with `share/summary.m4`
+- Do not create temp files for m4 rendering — pipe `printf '_macro()\n' | m4 -D...`
 - Do not replicate CHANGELOG entries into TODO — TODO is future-only — the ZFS dataset serves as home.
 - Do not create datasets with `zfs create -p` when parent datasets need explicit creation.
 - Do not use `docker-compose` or `podman-compose` — this project is

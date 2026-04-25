@@ -166,6 +166,10 @@ echo "chown \$*" >> "$TEST_DIR/chown.log"
 exit 0
 EOF
 
+    # ── Mock: m4 — delegate to real m4 (it's available in CI) ──────────────
+    # m4 is a required runtime dep; tests use the real binary.
+    # If absent, the "need m4" preflight will fail the installer cleanly.
+
     # ── Mock: zpool — pool always exists ─────────────────────────────────────
     cat > "$MOCK_DIR/zpool" << 'EOF'
 #!/bin/sh
@@ -903,4 +907,92 @@ EOF
 
 @test "haproxy-fts.cfg: federation frontend terminates TLS (ssl crt on bind)" {
     grep -q "bind.*9000.*ssl crt" "$REPO_ROOT/examples/haproxy-fts.cfg"
+}
+
+# ─── m4 summary template ──────────────────────────────────────────────────────
+
+@test "share/summary.m4: file exists" {
+    [ -f "$REPO_ROOT/share/summary.m4" ]
+}
+
+@test "share/summary.m4: defines _preflight macro" {
+    grep -q "define.*_preflight" "$REPO_ROOT/share/summary.m4"
+}
+
+@test "share/summary.m4: defines _header macro" {
+    grep -q "define.*_header" "$REPO_ROOT/share/summary.m4"
+}
+
+@test "share/summary.m4: defines _endpoints macro" {
+    grep -q "define.*_endpoints" "$REPO_ROOT/share/summary.m4"
+}
+
+@test "share/summary.m4: defines _ops macro" {
+    grep -q "define.*_ops" "$REPO_ROOT/share/summary.m4"
+}
+
+@test "share/summary.m4: uses changequote to protect label strings" {
+    grep -q "changequote" "$REPO_ROOT/share/summary.m4"
+}
+
+@test "share/summary.m4: _header renders FTS_VERSION" {
+    out="$(printf '%s\n' '_header()' | m4 \
+        -D "FTS_VERSION=2.0.2" -D "FTS_USER=ftsvc" -D "FTS_UID=2001" \
+        -D "FTS_RUNTIME_UID=2001" -D "FTS_IP=10.0.0.1" \
+        -D "FTS_COT_PORT=8087" -D "FTS_COT_PORT_S=8089" \
+        -D "FTS_API_PORT=19023" -D "FTS_UI_PORT=5000" -D "FTS_FED_PORT=9000" \
+        -D "ZFS_POOL=storage" -D "DS_CONTAINER=storage/containers/fts" \
+        -D "DS_USER=storage/users/ftsvc" -D "MNT_CONTAINER=/srv/fts" \
+        -D "MNT_USER=/var/lib/ftsvc" -D "QUADLET_DIR=/q" \
+        -D "SHM_DIR=/dev/shm/x" -D "PODMAN_VER=4.9.0" \
+        "$REPO_ROOT/share/summary.m4" -)"
+    echo "$out" | grep -q "2.0.2"
+}
+
+@test "share/summary.m4: _endpoints renders all five services" {
+    out="$(printf '%s\n' '_endpoints()' | m4 \
+        -D "FTS_VERSION=2.0.2" -D "FTS_USER=ftsvc" -D "FTS_UID=2001" \
+        -D "FTS_RUNTIME_UID=2001" -D "FTS_IP=10.0.0.1" \
+        -D "FTS_COT_PORT=8087" -D "FTS_COT_PORT_S=8089" \
+        -D "FTS_API_PORT=19023" -D "FTS_UI_PORT=5000" -D "FTS_FED_PORT=9000" \
+        -D "ZFS_POOL=storage" -D "DS_CONTAINER=storage/containers/fts" \
+        -D "DS_USER=storage/users/ftsvc" -D "MNT_CONTAINER=/srv/fts" \
+        -D "MNT_USER=/var/lib/ftsvc" -D "QUADLET_DIR=/q" \
+        -D "SHM_DIR=/dev/shm/x" -D "PODMAN_VER=4.9.0" \
+        "$REPO_ROOT/share/summary.m4" -)"
+    echo "$out" | grep -q "10.0.0.1:8087"
+    echo "$out" | grep -q "10.0.0.1:8089"
+    echo "$out" | grep -q "10.0.0.1:19023"
+    echo "$out" | grep -q "10.0.0.1:5000"
+    echo "$out" | grep -q "10.0.0.1:9000"
+}
+
+@test "share/summary.m4: label strings not substituted by m4 (changequote works)" {
+    out="$(printf '%s\n' '_preflight()' | m4 \
+        -D "FTS_VERSION=2.0.2" -D "FTS_USER=ftsvc" -D "FTS_UID=2001" \
+        -D "FTS_RUNTIME_UID=2001" -D "FTS_IP=10.0.0.1" \
+        -D "FTS_COT_PORT=8087" -D "FTS_COT_PORT_S=8089" \
+        -D "FTS_API_PORT=19023" -D "FTS_UI_PORT=5000" -D "FTS_FED_PORT=9000" \
+        -D "ZFS_POOL=storage" -D "DS_CONTAINER=storage/containers/fts" \
+        -D "DS_USER=storage/users/ftsvc" -D "MNT_CONTAINER=/srv/fts" \
+        -D "MNT_USER=/var/lib/ftsvc" -D "QUADLET_DIR=/q" \
+        -D "SHM_DIR=/dev/shm/x" -D "PODMAN_VER=4.9.0" \
+        "$REPO_ROOT/share/summary.m4" -)"
+    # Label "IP:" must appear verbatim — not substituted to "10.0.0.1:"
+    echo "$out" | grep -q "IP:"
+    echo "$out" | grep -qv "10.0.0.1:"
+}
+
+@test "fts_setup.sh: need m4 in preflight" {
+    grep -q "need m4" "$REPO_ROOT/fts_setup.sh"
+}
+
+@test "fts_setup.sh: render() helper defined" {
+    grep -q "^render()" "$REPO_ROOT/fts_setup.sh"
+}
+
+@test "fts_setup.sh: no bare printf summary blocks (render() used instead)" {
+    # Summary section must not contain printf '%-22s lines
+    run grep 'printf.*%-22s' "$REPO_ROOT/fts_setup.sh"
+    [ "$status" -ne 0 ]
 }
