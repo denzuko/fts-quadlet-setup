@@ -11,12 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - `fts_setup.sh` — POSIX sh bootstrapper mirroring `pbx-quadlet-setup/pbx_setup.sh` conventions
+  - **Rootless service account** via `useradd --system --uid 2001 ftsvc`
+  - **Linger** via `loginctl enable-linger` for boot persistence without login
+  - **User manager** startup via `systemctl start user@2001.service` + D-Bus socket poll
+  - **`machinectl shell ftsvc@`** for all user-context operations (pull, daemon-reload, enable)
+  - All unit files installed to `~ftsvc/.config/containers/systemd/`
+  - `systemctl --user` scope throughout; never rootful service management
   - `--ip` flag and `$FTS_IP` env var for site-local IP injection
   - Auto-detection fallback via `ip route get 1`
   - Idempotent: preserves operator edits to `fts.env` on re-runs
   - Smoke test loop against REST API `/SystemStatus/getStatus` after start
-- `containers/freetakserver.container` — Podman Quadlet unit for FTS core
+- `containers/freetakserver.container` — **User-scoped** Podman Quadlet unit for FTS core
   - GHCR image (`ghcr.io/freetakteam/freetakserver:latest`)
+  - `EnvironmentFile=%h/...` (home-relative `%h` specifier, not `/etc/`)
+  - `WantedBy=default.target` (user scope — not `multi-user.target`)
   - `AutoUpdate=registry` for unattended image tracking
   - All six TAK ports published: CoT TCP (8087), CoT SSL (8089), HTTP (8080), HTTPS (8443), REST API (19023), Federation (9000)
   - Health check via REST API status endpoint

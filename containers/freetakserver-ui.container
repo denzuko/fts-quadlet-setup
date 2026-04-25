@@ -1,12 +1,10 @@
-# /etc/containers/systemd/freetakserver-ui.container
-# FreeTAKServer Web UI — Podman Quadlet (systemd-native)
+# ~/.config/containers/systemd/freetakserver-ui.container
+# FreeTAKServer Web UI — rootless Podman Quadlet (user-scoped systemd)
 #
-# Depends on freetakserver.service (core) being healthy before start.
-# UI communicates with core over the fts.network via container DNS name.
-#
-# After dropping this file, run:
-#   systemctl daemon-reload
-#   systemctl start freetakserver-ui.service
+# Managed by: ftsvc service account  (useradd --system --uid 2001)
+# Unit scope: systemctl --user
+# Install:    fts_setup.sh (run as root)
+# Logs:       machinectl shell ftsvc@ -- journalctl --user -u freetakserver-ui.service -f
 
 [Unit]
 Description=FreeTAKServer Web UI
@@ -20,10 +18,10 @@ ContainerName=freetakserver-ui
 Image=ghcr.io/freetakteam/ui:latest
 AutoUpdate=registry
 
-# Site-local environment
-EnvironmentFile=/etc/containers/systemd/fts.env
+EnvironmentFile=%h/.config/containers/systemd/fts.env
 
-# UI talks to core via container hostname on the shared fts network
+# UI addresses core by container DNS name on the shared network.
+# Never hardcode an IP here — let the fts bridge resolve it.
 Environment=FTS_IP=freetakserver
 Environment=FTS_API_PORT=%E{FTS_API_PORT}
 Environment=FTS_API_PROTO=%E{FTS_UI_PROTO}
@@ -36,16 +34,12 @@ Environment=FTS_UI_WSKEY=%E{FTS_UI_WSKEY}
 Environment=FTS_API_KEY=%E{FTS_API_KEY}
 Environment=FTS_UI_SQLALCHEMY_DATABASE_URI=%E{FTS_UI_SQLALCHEMY_DATABASE_URI}
 
-# Persistent UI database
 Volume=fts-ui-data.volume:/home/freetak/data:Z
 
-# Shared internal network for core↔UI communication
 Network=fts.network
 
-# UI web port exposed to LAN
 PublishPort=5000:5000
 
-# Security posture
 DropCapability=ALL
 NoNewPrivileges=true
 
@@ -58,4 +52,4 @@ RestartSec=10
 TimeoutStartSec=90
 
 [Install]
-WantedBy=multi-user.target default.target
+WantedBy=default.target
