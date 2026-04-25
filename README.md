@@ -46,6 +46,7 @@ All tunables are environment variables. Pass at runtime to override.
 | `FTS_FED_PORT` | `9000` | Federation |
 | `FTS_UI_PORT` | `5000` | Web UI |
 | `BUS_TIMEOUT` | `30` | D-Bus socket poll timeout (seconds) |
+| `FTS_VERSION` | `2.0.2` | Release tag stamped on ZFS datasets and env file header |
 | `FTS_UNINSTALL` | `0` | Set to `1` to remove everything |
 
 ## Secrets
@@ -89,6 +90,19 @@ Lint and test run in CI on every push and PR. Fixes are submitted via pull reque
 shellcheck -S style fts_setup.sh
 bats tests/fts_setup.bats
 ```
+
+Runtime requirements (all checked by installer preflight):
+
+| Tool | Purpose |
+|---|---|
+| `m4` | Summary template rendering (`share/summary.m4`) |
+| `openssl` | Secret generation (`openssl rand -hex 32`) |
+| `zfs` / `zpool` | Dataset creation and snapshotting |
+| `podman` ≥ 4.4 | Quadlet generator and rootless containers |
+| `systemd` ≥ 252 | User-scoped quadlet support |
+| `machinectl` | Service account delegation |
+| `useradd` | Service account creation |
+| `loginctl` | Linger management |
 
 ## License
 

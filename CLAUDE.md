@@ -159,6 +159,7 @@ automatically — operators copy the relevant blocks into the live
 - Do not add a Makefile or any build tooling — installer is the truth
 - Do not use bare `printf` for summary output — use `render <macro>` with `share/summary.m4`
 - Do not create temp files for m4 rendering — pipe `printf '_macro()\n' | m4 -D...`
+- R16: No bare `printf %-Ns` summary blocks — use `render <macro>` exclusively
 - Do not replicate CHANGELOG entries into TODO — TODO is future-only — the ZFS dataset serves as home.
 - Do not create datasets with `zfs create -p` when parent datasets need explicit creation.
 - Do not use `docker-compose` or `podman-compose` — this project is

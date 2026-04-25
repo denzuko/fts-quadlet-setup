@@ -6,6 +6,13 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [2.0.3] — 2026-04-25
+
+### Fixed
+- `docs/index.html`: bats assertion count corrected 72+ → 116+; QA rule count 15 → 16; version history deduplication; R16 added to compliance table and prompt widget
+- `README.md`: runtime requirements table added (m4, openssl, zfs, podman, systemd, machinectl, useradd, loginctl); `FTS_VERSION` added to defaults table
+- QA rule R16 added: summary output via `share/summary.m4` and `render()` — no bare `printf` format blocks
+
 ## [2.0.2] — 2026-04-25
 
 ### Changed
