@@ -45,6 +45,11 @@ All quadlet files land in `/etc/containers/systemd/` on the target host.
 
 ## Key Conventions (match pbx-quadlet-setup exactly)
 
+- **ZFS datasets:** Always provisioned before account creation. Convention:
+  - `$POOL/containers/<name>` with `-o mountpoint=/srv/<name>`
+  - `$POOL/users/<name>` with `-o mountpoint=/var/lib/<name>`
+  - Properties: `compression=lz4`, `atime=off`
+  - `useradd --no-create-home` — the ZFS dataset IS the home directory
 - **Shell:** POSIX sh only in `fts_setup.sh` — no bashisms. Verify with
   `shellcheck -S style fts_setup.sh`.
 - **Quadlet units:** systemd INI syntax. One `[Container]`, one `[Service]`,
@@ -131,6 +136,8 @@ systemctl restart freetakserver-ui.service
 
 ## What Claude Should Not Do
 
+- Do not use `--create-home` with `useradd` — the ZFS dataset serves as home.
+- Do not create datasets with `zfs create -p` when parent datasets need explicit creation.
 - Do not use `docker-compose` or `podman-compose` — this project is
   quadlet-native.
 - Do not use bash-specific syntax in `fts_setup.sh`.

@@ -35,6 +35,14 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Inter-container DNS name (`FTS_IP=freetakserver`) avoids hardcoded IPs
   - UI port 5000 published to host
   - Same hardening posture as core container
+- **ZFS datasets** provisioned before account creation (Section 5)
+  - `storage/containers/fts` → `-o mountpoint=/srv/fts` (quadlet/volume data)
+  - `storage/users/ftsvc`    → `-o mountpoint=/var/lib/ftsvc` (service account home)
+  - Standard properties: `compression=lz4`, `atime=off`
+  - `--pool <name>` flag to override pool (default: `storage`)
+  - Idempotent: skips dataset creation if already present
+  - `useradd --no-create-home` — ZFS dataset is the home directory
+  - `chown UID:UID /var/lib/ftsvc` after dataset creation
 - `networks/fts.network` — isolated bridge network (`10.89.2.0/24`)
 - `volumes/fts-data.volume` — named volume for core state (DB, certs, data packages)
 - `volumes/fts-ui-data.volume` — named volume for UI state

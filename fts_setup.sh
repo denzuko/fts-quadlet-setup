@@ -2,6 +2,7 @@
 # fts_setup.sh — FreeTAKServer rootless quadlet installer
 # Mirrors pbx_setup.sh conventions from denzuko/pbx-quadlet-setup:
 #   - POSIX sh (no bashisms)
+#   - ZFS datasets for container data and service account home
 #   - Dedicated service account (useradd --system) with lingering
 #   - Rootless Podman Quadlets via machinectl shell
 #   - User-scoped unit files in ~/.config/containers/systemd/
@@ -10,13 +11,14 @@
 #
 # Usage (run as root):
 #   FTS_IP=192.0.2.10 sh fts_setup.sh
-#   sh fts_setup.sh --ip 192.0.2.10
+#   sh fts_setup.sh --ip 192.0.2.10 [--pool storage]
 #
 # Requirements:
-#   - podman >= 4.4   (quadlet generator built-in)
-#   - systemd >= 252  (user-scoped quadlet support)
-#   - machinectl      (systemd-container or systemd package)
-#   - useradd         (shadow-utils / passwd)
+#   - zfs / zpool    (OpenZFS)
+#   - podman >= 4.4  (quadlet generator built-in)
+#   - systemd >= 252 (user-scoped quadlet support)
+#   - machinectl     (systemd-container or systemd package)
+#   - useradd        (shadow-utils / passwd)
 
 set -eu
 
@@ -26,9 +28,18 @@ set -eu
 FTS_IP="${FTS_IP:-}"
 FTS_USER="${FTS_USER:-ftsvc}"
 FTS_UID="${FTS_UID:-2001}"
+ZFS_POOL="${ZFS_POOL:-storage}"
 IMAGE_CORE="ghcr.io/freetakteam/freetakserver:latest"
 IMAGE_UI="ghcr.io/freetakteam/ui:latest"
 BUS_TIMEOUT=30
+
+# Derived dataset names (convention: pool/container/<name>, pool/users/<name>)
+DS_CONTAINER="${ZFS_POOL}/containers/fts"
+DS_USER="${ZFS_POOL}/users/${FTS_USER}"
+
+# Derived mount points (convention: /srv/<name>, /var/lib/<name>)
+MNT_CONTAINER="/srv/fts"
+MNT_USER="/var/lib/${FTS_USER}"
 
 # ---------------------------------------------------------------------------
 # SECTION 2: Helpers
@@ -40,6 +51,25 @@ need() { command -v "$1" >/dev/null 2>&1 || die "$1 not found — install it fir
 # Run a command as the FTS service account via machinectl
 as_fts() { machinectl shell "${FTS_USER}@" /bin/sh -c "$*"; }
 
+# Create a ZFS dataset idempotently with standard properties
+# Usage: zfs_ensure <dataset> <mountpoint>
+zfs_ensure() {
+    _ds="$1"
+    _mp="$2"
+    if zfs list "$_ds" >/dev/null 2>&1; then
+        log "Dataset $_ds already exists — skipping"
+    else
+        log "Creating ZFS dataset $_ds (mountpoint=$_mp)"
+        zfs create \
+            -o mountpoint="$_mp" \
+            -o compression=lz4 \
+            -o atime=off \
+            "$_ds"
+        log "Dataset $_ds created"
+    fi
+    unset _ds _mp
+}
+
 # ---------------------------------------------------------------------------
 # SECTION 3: Argument parsing
 # ---------------------------------------------------------------------------
@@ -48,9 +78,15 @@ while [ $# -gt 0 ]; do
         --ip)   FTS_IP="$2";   shift 2 ;;
         --user) FTS_USER="$2"; shift 2 ;;
         --uid)  FTS_UID="$2";  shift 2 ;;
-        *) die "Unknown option: $1 (valid: --ip, --user, --uid)" ;;
+        --pool) ZFS_POOL="$2"; shift 2 ;;
+        *) die "Unknown option: $1 (valid: --ip, --user, --uid, --pool)" ;;
     esac
 done
+
+# Recompute derived names if --user or --pool were overridden
+DS_CONTAINER="${ZFS_POOL}/containers/fts"
+DS_USER="${ZFS_POOL}/users/${FTS_USER}"
+MNT_USER="/var/lib/${FTS_USER}"
 
 if [ -z "$FTS_IP" ]; then
     printf 'FTS_IP not set — auto-detecting via ip route... '
@@ -59,15 +95,19 @@ if [ -z "$FTS_IP" ]; then
 fi
 
 log "FreeTAKServer rootless quadlet installer"
-printf '    %-14s %s\n' "FTS_IP:"   "$FTS_IP"
-printf '    %-14s %s\n' "FTS_USER:" "$FTS_USER"
-printf '    %-14s %s\n' "FTS_UID:"  "$FTS_UID"
+printf '    %-18s %s\n' "FTS_IP:"     "$FTS_IP"
+printf '    %-18s %s\n' "FTS_USER:"   "$FTS_USER"
+printf '    %-18s %s\n' "FTS_UID:"    "$FTS_UID"
+printf '    %-18s %s\n' "ZFS_POOL:"   "$ZFS_POOL"
+printf '    %-18s %s\n' "DS_CONTAINER:" "$DS_CONTAINER"
+printf '    %-18s %s\n' "DS_USER:"    "$DS_USER"
 
 # ---------------------------------------------------------------------------
 # SECTION 4: Preflight checks
 # ---------------------------------------------------------------------------
-[ "$(id -u)" -eq 0 ] || die "Must run as root (installer creates the service account)"
+[ "$(id -u)" -eq 0 ] || die "Must run as root (installer creates ZFS datasets and service account)"
 
+need zfs
 need useradd
 need machinectl
 need loginctl
@@ -75,13 +115,38 @@ need systemctl
 need podman
 need curl
 
+# Verify ZFS pool exists before proceeding
+zpool list "$ZFS_POOL" >/dev/null 2>&1 \
+    || die "ZFS pool '$ZFS_POOL' not found — pass --pool <poolname>"
+
 podman_ver="$(podman --version | awk '{print $3}')"
-printf '    %-14s %s\n' "podman:" "$podman_ver"
+printf '    %-18s %s\n' "podman:" "$podman_ver"
 
 # ---------------------------------------------------------------------------
-# SECTION 5: Service account creation
+# SECTION 5: ZFS datasets
+#
+# Convention (mirrors pbx-quadlet-setup):
+#   storage/containers/<name>  -o mountpoint=/srv/<name>   (container data)
+#   storage/users/<name>       -o mountpoint=/var/lib/<name> (service account home)
 # ---------------------------------------------------------------------------
-log "SECTION 5: Service account"
+log "SECTION 5: ZFS datasets"
+
+# Ensure parent datasets exist (idempotent -p equivalent via zfs_ensure loop)
+for _parent in "${ZFS_POOL}/containers" "${ZFS_POOL}/users"; do
+    zfs list "$_parent" >/dev/null 2>&1 || zfs create "$_parent"
+done
+unset _parent
+
+# Container data dataset — quadlet volumes land under /srv/fts
+zfs_ensure "$DS_CONTAINER" "$MNT_CONTAINER"
+
+# Service account home dataset
+zfs_ensure "$DS_USER" "$MNT_USER"
+
+# ---------------------------------------------------------------------------
+# SECTION 6: Service account creation
+# ---------------------------------------------------------------------------
+log "SECTION 6: Service account"
 
 if getent passwd "$FTS_USER" >/dev/null 2>&1; then
     log "Account $FTS_USER already exists — skipping creation"
@@ -90,26 +155,28 @@ else
     useradd \
         --system \
         --uid      "$FTS_UID" \
-        --create-home \
-        --home-dir "/var/lib/$FTS_USER" \
+        --no-create-home \
+        --home-dir "$MNT_USER" \
         --shell    /bin/bash \
         --comment  "FreeTAKServer service account" \
         "$FTS_USER"
-    log "Account $FTS_USER created"
+    # Home directory is the ZFS dataset mountpoint — set ownership
+    chown "${FTS_UID}:${FTS_UID}" "$MNT_USER"
+    log "Account $FTS_USER created (home: $MNT_USER)"
 fi
 
 FTS_HOME="$(getent passwd "$FTS_USER" | cut -d: -f6)"
 FTS_RUNTIME_UID="$(getent passwd "$FTS_USER" | cut -d: -f3)"
 QUADLET_DIR="$FTS_HOME/.config/containers/systemd"
 
-printf '    %-14s %s\n' "home:"    "$FTS_HOME"
-printf '    %-14s %s\n' "uid:"     "$FTS_RUNTIME_UID"
-printf '    %-14s %s\n' "quadlet:" "$QUADLET_DIR"
+printf '    %-18s %s\n' "home:"    "$FTS_HOME"
+printf '    %-18s %s\n' "uid:"     "$FTS_RUNTIME_UID"
+printf '    %-18s %s\n' "quadlet:" "$QUADLET_DIR"
 
 # ---------------------------------------------------------------------------
-# SECTION 6: Linger — survive without active login session
+# SECTION 7: Linger — survive without active login session
 # ---------------------------------------------------------------------------
-log "SECTION 6: Linger"
+log "SECTION 7: Linger"
 
 loginctl enable-linger "$FTS_USER"
 loginctl show-user "$FTS_USER" 2>/dev/null | grep -q "Linger=yes" \
@@ -117,9 +184,9 @@ loginctl show-user "$FTS_USER" 2>/dev/null | grep -q "Linger=yes" \
 log "Linger enabled for $FTS_USER"
 
 # ---------------------------------------------------------------------------
-# SECTION 7: Start user manager (user@UID.service)
+# SECTION 8: Start user manager (user@UID.service)
 # ---------------------------------------------------------------------------
-log "SECTION 7: User manager"
+log "SECTION 8: User manager"
 
 systemctl start "user@${FTS_RUNTIME_UID}.service" \
     || die "Failed to start user@${FTS_RUNTIME_UID}.service"
@@ -137,16 +204,16 @@ log "Session bus ready (${_elapsed}s)"
 unset _elapsed
 
 # ---------------------------------------------------------------------------
-# SECTION 8: Image pull (rootless store, under service account)
+# SECTION 9: Image pull (rootless store, under service account)
 # ---------------------------------------------------------------------------
-log "SECTION 8: Pulling container images (rootless store)"
+log "SECTION 9: Pulling container images (rootless store)"
 as_fts "podman pull $IMAGE_CORE"
 as_fts "podman pull $IMAGE_UI"
 
 # ---------------------------------------------------------------------------
-# SECTION 9: Install quadlet unit files
+# SECTION 10: Install quadlet unit files
 # ---------------------------------------------------------------------------
-log "SECTION 9: Installing quadlet unit files"
+log "SECTION 10: Installing quadlet unit files"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -180,18 +247,18 @@ log "FTS_IP=${FTS_IP} written to fts.env"
 unset _env_dst
 
 # ---------------------------------------------------------------------------
-# SECTION 10: Reload user systemd and enable services
+# SECTION 11: Reload user systemd and enable services
 # ---------------------------------------------------------------------------
-log "SECTION 10: Reloading user daemon and enabling services"
+log "SECTION 11: Reloading user daemon and enabling services"
 
 as_fts "systemctl --user daemon-reload"
 as_fts "systemctl --user enable --now freetakserver.service"
 as_fts "systemctl --user enable --now freetakserver-ui.service"
 
 # ---------------------------------------------------------------------------
-# SECTION 11: Smoke test
+# SECTION 12: Smoke test
 # ---------------------------------------------------------------------------
-log "SECTION 11: REST API readiness (up to 90s)"
+log "SECTION 12: REST API readiness (up to 90s)"
 
 _tries=0
 until curl -sf "http://localhost:19023/SystemStatus/getStatus" >/dev/null 2>&1; do
@@ -213,6 +280,8 @@ printf '\n'
 log "FreeTAKServer deployment complete"
 printf '\n'
 printf '    %-22s %s\n' "Service account:"  "$FTS_USER (uid $FTS_RUNTIME_UID)"
+printf '    %-22s %s\n' "ZFS home:"         "$DS_USER -> $MNT_USER"
+printf '    %-22s %s\n' "ZFS data:"         "$DS_CONTAINER -> $MNT_CONTAINER"
 printf '    %-22s %s\n' "Quadlet dir:"      "$QUADLET_DIR"
 printf '    %-22s %s\n' "CoT TCP:"          "$FTS_IP:8087"
 printf '    %-22s %s\n' "CoT SSL:"          "$FTS_IP:8089"

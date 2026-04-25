@@ -5,6 +5,12 @@ Format: `[ ]` open · `[x]` done · `[-]` deferred/won't-do
 
 ---
 
+## v1.0.0 — Done
+
+- [x] ZFS datasets: `storage/containers/fts` + `storage/users/ftsvc`
+- [x] Rootless service account via `useradd --system --no-create-home`
+- [x] Linger + machinectl + user-scoped quadlets
+
 ## v1.1 — Hardening & TLS
 
 - [ ] **PKI bootstrap** — generate FTS certificate authority and client certs in `fts_setup.sh`
