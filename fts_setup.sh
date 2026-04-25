@@ -59,7 +59,30 @@ log()  { printf '==> %s\n' "$*"; }
 die()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || die "$1 not found — install it first"; }
 
-# Run a command as the FTS service account via machinectl
+# Render a named m4 template macro from share/summary.m4
+# Usage: render <macro_name>
+render() {
+    printf '%s\n' "_$1()" | m4 \
+        -D "FTS_VERSION=${FTS_VERSION}" \
+        -D "FTS_USER=${FTS_USER}" \
+        -D "FTS_UID=${FTS_UID}" \
+        -D "FTS_RUNTIME_UID=${FTS_RUNTIME_UID:-$FTS_UID}" \
+        -D "FTS_IP=${FTS_IP}" \
+        -D "FTS_COT_PORT=${FTS_COT_PORT}" \
+        -D "FTS_COT_PORT_S=${FTS_COT_PORT_S}" \
+        -D "FTS_API_PORT=${FTS_API_PORT}" \
+        -D "FTS_UI_PORT=${FTS_UI_PORT}" \
+        -D "FTS_FED_PORT=${FTS_FED_PORT}" \
+        -D "ZFS_POOL=${ZFS_POOL}" \
+        -D "DS_CONTAINER=${DS_CONTAINER:-${ZFS_POOL}/containers/fts}" \
+        -D "DS_USER=${DS_USER:-${ZFS_POOL}/users/${FTS_USER}}" \
+        -D "MNT_CONTAINER=${MNT_CONTAINER:-/srv/fts}" \
+        -D "MNT_USER=${MNT_USER:-/var/lib/${FTS_USER}}" \
+        -D "QUADLET_DIR=${QUADLET_DIR:-}" \
+        -D "SHM_DIR=${SHM_DIR:-}" \
+        -D "PODMAN_VER=${podman_ver:-}" \
+        "${SCRIPT_DIR}/share/summary.m4" -
+}
 as_fts() { machinectl shell "${FTS_USER}@" /bin/sh -c "$*"; }
 
 # Create a ZFS dataset idempotently with standard properties + version tag
@@ -100,6 +123,7 @@ gen_secret() {
 # ---------------------------------------------------------------------------
 [ "$(id -u)" -eq 0 ] || die "Must run as root"
 
+need m4
 need openssl
 need zfs
 need useradd
@@ -131,12 +155,7 @@ MNT_USER="/var/lib/${FTS_USER}"
 
 podman_ver="$(podman --version | awk '{print $3}')"
 log "FreeTAKServer rootless quadlet installer v${FTS_VERSION}"
-printf '    %-20s %s\n' "FTS_IP:"       "$FTS_IP"
-printf '    %-20s %s\n' "FTS_USER:"     "$FTS_USER (uid $FTS_UID)"
-printf '    %-20s %s\n' "ZFS_POOL:"     "$ZFS_POOL"
-printf '    %-20s %s\n' "DS_CONTAINER:" "$DS_CONTAINER -> $MNT_CONTAINER"
-printf '    %-20s %s\n' "DS_USER:"      "$DS_USER -> $MNT_USER"
-printf '    %-20s %s\n' "podman:"       "$podman_ver"
+render preflight
 
 # ---------------------------------------------------------------------------
 # SECTION 5: Uninstall path
@@ -351,22 +370,6 @@ unset _tries
 # ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
-printf '\n'
-log "FreeTAKServer v${FTS_VERSION} deployment complete"
-printf '\n'
-printf '    %-22s %s\n' "Service account:"  "$FTS_USER (uid $FTS_RUNTIME_UID)"
-printf '    %-22s %s\n' "ZFS home:"         "$DS_USER -> $MNT_USER"
-printf '    %-22s %s\n' "ZFS data:"         "$DS_CONTAINER -> $MNT_CONTAINER"
-printf '    %-22s %s\n' "Quadlet dir:"      "$QUADLET_DIR"
-printf '    %-22s %s\n' "Secret namespace:" "$SHM_DIR"
-printf '    %-22s %s\n' "CoT TCP:"          "$FTS_IP:$FTS_COT_PORT"
-printf '    %-22s %s\n' "CoT SSL:"          "$FTS_IP:$FTS_COT_PORT_S"
-printf '    %-22s %s\n' "REST API:"         "http://$FTS_IP:$FTS_API_PORT"
-printf '    %-22s %s\n' "Web UI:"           "http://$FTS_IP:$FTS_UI_PORT"
-printf '    %-22s %s\n' "Federation:"       "$FTS_IP:$FTS_FED_PORT"
-printf '\n'
-printf '    Logs:   machinectl shell %s@ -- journalctl --user -u freetakserver.service -f\n' "$FTS_USER"
-printf '    Status: machinectl shell %s@ -- systemctl --user status freetakserver.service\n' "$FTS_USER"
-printf '\n'
-printf '    Secrets are in %s — copy them off before reboot\n' "$SHM_DIR"
-printf '    (tmpfs — contents are lost on reboot by design)\n'
+render header
+render endpoints
+render ops
