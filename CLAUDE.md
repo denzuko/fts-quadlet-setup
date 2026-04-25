@@ -122,6 +122,19 @@ systemctl restart freetakserver-ui.service
 
 ---
 
+## HAProxy integration
+
+The additive stanza lives in `examples/haproxy-fts.cfg`. It is never merged
+automatically — operators copy the relevant blocks into the live
+`/etc/haproxy/haproxy.cfg` by hand.
+
+- HTTP vhosts (API, UI, data packages) go inside `frontend http`
+- TCP frontends (CoT, CoT SSL, federation) go **outside** `frontend http`
+- CoT SSL (8089) is TCP passthrough — HAProxy must NOT terminate TLS; FTS
+  manages its own PKI for ATAK client cert auth
+- Health check on `fts_api` uses `GET /SystemStatus/getStatus` expect 200
+- `check inter 10s` matches all other backends in the dapla.net stack
+
 ## Adding a New Quadlet Unit
 
 1. Create the file in `containers/`, `networks/`, or `volumes/`.

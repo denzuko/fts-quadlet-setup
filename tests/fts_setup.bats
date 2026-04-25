@@ -648,3 +648,79 @@ EOF
 @test "fts_setup.sh: MNT_USER is /var/lib/<FTS_USER>" {
     grep -q 'MNT_USER.*/var/lib/' "$REPO_ROOT/fts_setup.sh"
 }
+
+# ─── HAProxy config tests ─────────────────────────────────────────────────────
+
+@test "haproxy-fts.cfg: exists in examples/" {
+    [ -f "$REPO_ROOT/examples/haproxy-fts.cfg" ]
+}
+
+@test "haproxy-fts.cfg: ACL for tak.dapla.net (REST API)" {
+    grep -q "vhost_fts_api.*tak\.dapla\.net" \
+        "$REPO_ROOT/examples/haproxy-fts.cfg"
+}
+
+@test "haproxy-fts.cfg: ACL for ui.tak.dapla.net (Web UI)" {
+    grep -q "vhost_fts_ui.*ui\.tak\.dapla\.net" \
+        "$REPO_ROOT/examples/haproxy-fts.cfg"
+}
+
+@test "haproxy-fts.cfg: ACL for data.tak.dapla.net (data packages)" {
+    grep -q "vhost_fts_data.*data\.tak\.dapla\.net" \
+        "$REPO_ROOT/examples/haproxy-fts.cfg"
+}
+
+@test "haproxy-fts.cfg: fts_api backend targets port 19023" {
+    grep -q "127\.0\.0\.1:19023" "$REPO_ROOT/examples/haproxy-fts.cfg"
+}
+
+@test "haproxy-fts.cfg: fts_api backend has HTTP health check" {
+    grep -q "httpchk GET /SystemStatus/getStatus" \
+        "$REPO_ROOT/examples/haproxy-fts.cfg"
+}
+
+@test "haproxy-fts.cfg: fts_data backend targets port 8080" {
+    grep -q "127\.0\.0\.1:8080" "$REPO_ROOT/examples/haproxy-fts.cfg"
+}
+
+@test "haproxy-fts.cfg: fts_ui backend targets port 5000" {
+    grep -q "127\.0\.0\.1:5000" "$REPO_ROOT/examples/haproxy-fts.cfg"
+}
+
+@test "haproxy-fts.cfg: CoT TCP frontend on port 8087" {
+    grep -q "192\.168\.88\.106:8087" "$REPO_ROOT/examples/haproxy-fts.cfg"
+}
+
+@test "haproxy-fts.cfg: CoT SSL frontend on port 8089" {
+    grep -q "192\.168\.88\.106:8089" "$REPO_ROOT/examples/haproxy-fts.cfg"
+}
+
+@test "haproxy-fts.cfg: Federation frontend on port 9000" {
+    grep -q "192\.168\.88\.106:9000" "$REPO_ROOT/examples/haproxy-fts.cfg"
+}
+
+@test "haproxy-fts.cfg: TCP frontends use mode tcp" {
+    # All TCP stanzas must declare mode tcp
+    count=$(grep -c "^        mode.*tcp" "$REPO_ROOT/examples/haproxy-fts.cfg")
+    [ "$count" -ge 6 ]
+}
+
+@test "haproxy-fts.cfg: all backends use check inter 10s" {
+    count=$(grep -c "check inter 10s" "$REPO_ROOT/examples/haproxy-fts.cfg")
+    [ "$count" -ge 5 ]
+}
+
+@test "haproxy-fts.cfg: no live secrets or private keys present" {
+    run grep -i "password\|secret\|private_key\|BEGIN.*PRIVATE" \
+        "$REPO_ROOT/examples/haproxy-fts.cfg"
+    [ "$status" -ne 0 ]
+}
+
+@test "haproxy-fts.cfg: CoT SSL backend passes through (no ssl termination)" {
+    # HAProxy must NOT terminate TLS on cots backend — FTS owns its PKI
+    run grep -A5 "backend fts_cots_back" "$REPO_ROOT/examples/haproxy-fts.cfg"
+    echo "$output" | run grep -v "ssl"
+    # ssl keyword must not appear in the cots backend server line
+    run grep "server.*node1.*8089.*ssl" "$REPO_ROOT/examples/haproxy-fts.cfg"
+    [ "$status" -ne 0 ]
+}

@@ -43,6 +43,13 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Idempotent: skips dataset creation if already present
   - `useradd --no-create-home` — ZFS dataset is the home directory
   - `chown UID:UID /var/lib/ftsvc` after dataset creation
+- `examples/haproxy-fts.cfg` — additive HAProxy stanza for the dapla.net stack
+  - vhost ACLs: `tak.dapla.net` (API), `ui.tak.dapla.net`, `data.tak.dapla.net`
+  - HTTP backends: `fts_api` (19023, HTTP health check), `fts_data` (8080), `fts_ui` (5000)
+  - TCP passthrough frontends: `fts_cot` (8087), `fts_cots` (8089), `fts_fed` (9000)
+  - CoT SSL passes through unterminated — FTS owns its own PKI
+  - Matches existing stack conventions: `check inter 10s`, `balance roundrobin`
+  - 15 bats assertions covering ports, ACL names, health check, no-TLS-termination
 - `networks/fts.network` — isolated bridge network (`10.89.2.0/24`)
 - `volumes/fts-data.volume` — named volume for core state (DB, certs, data packages)
 - `volumes/fts-ui-data.volume` — named volume for UI state
