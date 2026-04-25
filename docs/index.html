@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>fts-quadlet-setup — FreeTAKServer on Podman Quadlets</title>
+<meta name="description" content="FreeTAKServer deployed as rootless Podman Quadlet units under systemd. ZFS datasets, service account isolation, HAProxy vhost routing for *.tak.dapla.net.">
+<meta name="author" content="Dwight Spencer / Da Planet Security">
+<link rel="canonical" href="https://denzuko.github.io/fts-quadlet-setup/">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
+
+  :root {
+    --bg:        #0d1117;
+    --bg2:       #161b22;
+    --bg3:       #21262d;
+    --border:    #30363d;
+    --text:      #c9d1d9;
+    --muted:     #8b949e;
+    --green:     #3fb950;
+    --amber:     #d29922;
+    --blue:      #58a6ff;
+    --red:       #f85149;
+    --teal:      #39d353;
+    --accent:    #238636;
+    --mono:      'IBM Plex Mono', 'Courier New', monospace;
+    --sans:      'IBM Plex Sans', system-ui, sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── Scanline overlay ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,.08) 2px,
+      rgba(0,0,0,.08) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ── Layout ── */
+  .wrap {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+
+  /* ── Header ── */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 3rem 0 2.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--teal), transparent);
+    opacity: .6;
+  }
+
+  .project-eyebrow {
+    font-family: var(--mono);
+    font-size: .75rem;
+    color: var(--teal);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    margin-bottom: .75rem;
+  }
+
+  h1 {
+    font-family: var(--mono);
+    font-size: 2rem;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: -.02em;
+    line-height: 1.1;
+    margin-bottom: 1rem;
+  }
+
+  h1 span { color: var(--teal); }
+
+  .tagline {
+    color: var(--muted);
+    font-size: .95rem;
+    max-width: 580px;
+    margin-bottom: 1.5rem;
+    font-family: var(--mono);
+  }
+
+  /* ── Badges ── */
+  .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .5rem; }
+
+  .badge {
+    font-family: var(--mono);
+    font-size: .7rem;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: .2rem .6rem;
+    border-radius: 3px;
+    border: 1px solid;
+  }
+
+  .badge.green  { color: var(--green); border-color: var(--green);  background: rgba(63,185,80,.08); }
+  .badge.amber  { color: var(--amber); border-color: var(--amber);  background: rgba(210,153,34,.08); }
+  .badge.blue   { color: var(--blue);  border-color: var(--blue);   background: rgba(88,166,255,.08); }
+  .badge.teal   { color: var(--teal);  border-color: var(--teal);   background: rgba(57,211,83,.08); }
+  .badge.red    { color: var(--red);   border-color: var(--red);    background: rgba(248,81,73,.08); }
+
+  /* ── Sections ── */
+  section { padding: 2.5rem 0; border-bottom: 1px solid var(--border); }
+  section:last-of-type { border-bottom: none; }
+
+  h2 {
+    font-family: var(--mono);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--teal);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin-bottom: 1.25rem;
+  }
+
+  h2::before { content: '## '; color: var(--border); }
+
+  /* ── Code blocks ── */
+  pre {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--teal);
+    border-radius: 4px;
+    padding: 1.25rem 1.5rem;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: .82rem;
+    line-height: 1.7;
+    margin: 1rem 0;
+  }
+
+  .comment { color: var(--muted); }
+  .cmd     { color: var(--teal); }
+  .str     { color: var(--amber); }
+  .kw      { color: var(--blue); }
+  .flag    { color: #ce9178; }
+
+  code {
+    font-family: var(--mono);
+    font-size: .85em;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: .1em .4em;
+    color: var(--amber);
+  }
+
+  /* ── Tables ── */
+  .table-wrap { overflow-x: auto; margin: 1rem 0; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: .82rem;
+  }
+
+  th {
+    text-align: left;
+    padding: .5rem .75rem;
+    background: var(--bg3);
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    font-weight: 400;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    font-size: .72rem;
+  }
+
+  td {
+    padding: .5rem .75rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+
+  td:first-child { color: var(--amber); font-weight: 600; }
+
+  .tcp  { color: var(--blue); }
+  .http { color: var(--teal); }
+
+  /* ── Stack pills ── */
+  .stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin: 1rem 0;
+  }
+
+  .pill {
+    font-family: var(--mono);
+    font-size: .75rem;
+    padding: .25rem .7rem;
+    border-radius: 2px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+
+  .pill strong { color: var(--text); }
+
+  /* ── Sections prose ── */
+  p { color: var(--muted); margin-bottom: .75rem; font-size: .9rem; }
+
+  /* ── Footer ── */
+  footer {
+    padding: 2rem 0;
+    font-family: var(--mono);
+    font-size: .75rem;
+    color: var(--muted);
+    text-align: center;
+    letter-spacing: .04em;
+  }
+
+  footer a { color: var(--muted); }
+  footer a:hover { color: var(--blue); }
+
+  /* ── Glow pulse on load ── */
+  @keyframes glow-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .wrap > * {
+    animation: glow-in .4s ease both;
+  }
+
+  header  { animation-delay: .05s; }
+  section { animation-delay: .12s; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="project-eyebrow">denzuko / fts-quadlet-setup</p>
+    <h1><span>fts</span>-quadlet-setup</h1>
+    <p class="tagline">FreeTAKServer deployed as rootless Podman Quadlet units under systemd &mdash; ZFS-backed, service-account-isolated, HAProxy-fronted.</p>
+    <div class="badges">
+      <span class="badge green">v1.0.0</span>
+      <span class="badge teal">rootless</span>
+      <span class="badge blue">BSD 2-Clause</span>
+      <span class="badge amber">POSIX sh</span>
+      <span class="badge green">ShellCheck clean</span>
+    </div>
+  </header>
+
+  <section id="install">
+    <h2>Install</h2>
+    <p>Run as root on any systemd host with Podman &ge; 4.4 and a ZFS pool named <code>storage</code>.</p>
+    <pre><span class="comment"># Download and review before running</span>
+<span class="cmd">curl</span> <span class="flag">-fsSL</span> <span class="str">https://denzuko.github.io/fts-quadlet-setup/fts_setup.sh</span> <span class="flag">-o</span> fts_setup.sh
+<span class="cmd">less</span> fts_setup.sh
+<span class="cmd">sudo</span> sh fts_setup.sh <span class="flag">--ip</span> <span class="str">192.0.2.10</span></pre>
+
+    <pre><span class="comment"># Override pool, service account name/uid</span>
+<span class="cmd">sudo</span> sh fts_setup.sh <span class="flag">--ip</span> <span class="str">192.0.2.10</span> <span class="flag">--pool</span> <span class="str">tank</span> <span class="flag">--user</span> <span class="str">ftsvc</span> <span class="flag">--uid</span> <span class="str">2001</span></pre>
+  </section>
+
+  <section id="stack">
+    <h2>Stack</h2>
+    <div class="stack">
+      <span class="pill"><strong>ZFS</strong> OpenZFS datasets</span>
+      <span class="pill"><strong>useradd</strong> --system service account</span>
+      <span class="pill"><strong>loginctl</strong> enable-linger</span>
+      <span class="pill"><strong>machinectl</strong> shell delegation</span>
+      <span class="pill"><strong>Podman</strong> &ge; 4.4 rootless</span>
+      <span class="pill"><strong>Quadlet</strong> user-scoped systemd</span>
+      <span class="pill"><strong>GHCR</strong> ghcr.io/freetakteam</span>
+      <span class="pill"><strong>HAProxy</strong> vhost + TCP passthrough</span>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Layer</th><th>Component</th><th>Detail</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>Storage</td><td>ZFS datasets</td><td><code>storage/containers/fts</code> &rarr; <code>/srv/fts</code> &nbsp;&bull;&nbsp; <code>storage/users/ftsvc</code> &rarr; <code>/var/lib/ftsvc</code></td></tr>
+          <tr><td>Identity</td><td>service account</td><td><code>useradd --system --uid 2001 --no-create-home ftsvc</code></td></tr>
+          <tr><td>Linger</td><td>boot persistence</td><td><code>loginctl enable-linger ftsvc</code> &rarr; user manager survives without session</td></tr>
+          <tr><td>Delegation</td><td>machinectl</td><td>all user-context ops run via <code>machinectl shell ftsvc@</code></td></tr>
+          <tr><td>Units</td><td>quadlet dir</td><td><code>~ftsvc/.config/containers/systemd/</code></td></tr>
+          <tr><td>Images</td><td>GHCR</td><td><code>ghcr.io/freetakteam/freetakserver</code> &nbsp;&bull;&nbsp; <code>ghcr.io/freetakteam/ui</code></td></tr>
+          <tr><td>Network</td><td>fts bridge</td><td><code>10.89.2.0/24</code> &mdash; inter-container DNS, no host exposure</td></tr>
+          <tr><td>Proxy</td><td>HAProxy</td><td>HTTP vhosts + TCP passthrough on <code>*.tak.dapla.net</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="ports">
+    <h2>Ports</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Port</th><th>Proto</th><th>vHost</th><th>Service</th><th>HAProxy mode</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>8087</td><td class="tcp">TCP</td><td><code>cot.tak.dapla.net</code></td><td>CoT streaming (ATAK/WinTAK)</td><td>TCP passthrough</td></tr>
+          <tr><td>8089</td><td class="tcp">TCP</td><td><code>cots.tak.dapla.net</code></td><td>CoT SSL (FTS PKI, mTLS)</td><td>TCP passthrough &mdash; no TLS termination</td></tr>
+          <tr><td>8080</td><td class="http">HTTP</td><td><code>data.tak.dapla.net</code></td><td>Data packages / HTTP CoT</td><td>HTTP backend</td></tr>
+          <tr><td>8443</td><td class="tcp">TCP</td><td>&mdash;</td><td>HTTPS (direct)</td><td>&mdash;</td></tr>
+          <tr><td>19023</td><td class="http">HTTP</td><td><code>tak.dapla.net</code></td><td>REST API</td><td>HTTP backend + health check</td></tr>
+          <tr><td>9000</td><td class="tcp">TCP</td><td><code>fed.tak.dapla.net</code></td><td>Server federation</td><td>TCP passthrough</td></tr>
+          <tr><td>5000</td><td class="http">HTTP</td><td><code>ui.tak.dapla.net</code></td><td>Web UI</td><td>HTTP backend</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="ops">
+    <h2>Operations</h2>
+    <pre><span class="comment"># Status (run as root)</span>
+<span class="cmd">machinectl</span> shell ftsvc@ -- systemctl --user status freetakserver.service
+
+<span class="comment"># Live logs</span>
+<span class="cmd">machinectl</span> shell ftsvc@ -- journalctl --user -u freetakserver.service -f
+
+<span class="comment"># Restart after config change</span>
+<span class="cmd">machinectl</span> shell ftsvc@ -- systemctl --user restart freetakserver-ui.service
+
+<span class="comment"># Manual image update</span>
+<span class="cmd">machinectl</span> shell ftsvc@ -- podman auto-update</pre>
+  </section>
+
+  <section id="test">
+    <h2>Test</h2>
+    <pre><span class="comment"># Requires: bats-core, shellcheck</span>
+<span class="cmd">make</span> test
+
+<span class="comment"># Lint only</span>
+<span class="cmd">make</span> lint
+
+<span class="comment"># Full bats run</span>
+<span class="cmd">bats</span> tests/fts_setup.bats</pre>
+  </section>
+
+  <footer>
+    <a href="fts_setup.sh">fts_setup.sh</a> &nbsp;&middot;&nbsp;
+    <a href="https://github.com/denzuko/fts-quadlet-setup">GitHub</a> &nbsp;&middot;&nbsp;
+    <a href="https://github.com/denzuko/fts-quadlet-setup/releases/tag/v1.0.0">Release v1.0.0</a> &nbsp;&middot;&nbsp;
+    <a href="https://github.com/denzuko/pbx-quadlet-setup">pbx-quadlet-setup</a>
+    <br><br>
+    &copy; 2026 Dwight Spencer / Da Planet Security &mdash; BSD 2-Clause
+  </footer>
+
+</div>
+</body>
+</html>
