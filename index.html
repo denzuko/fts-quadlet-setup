@@ -144,7 +144,7 @@
     <span class="badge blue">BSD 2-Clause</span>
     <span class="badge amber">POSIX sh</span>
     <span class="badge green">ShellCheck clean</span>
-    <span class="badge blue">2026.QA.v1 &mdash; 15 rules</span>
+    <span class="badge blue">2026.QA.v1 &mdash; 16 rules</span>
   </div>
 </header>
 
@@ -156,7 +156,7 @@
     <div class="card"><div class="card-title">Scope</div><div class="card-val">systemctl --user</div></div>
     <div class="card"><div class="card-title">Proxy</div><div class="card-val">HAProxy vhost</div></div>
     <div class="card"><div class="card-title">Images</div><div class="card-val">ghcr.io/freetakteam</div></div>
-    <div class="card"><div class="card-title">Tests</div><div class="card-val">bats 72+ assertions</div></div>
+    <div class="card"><div class="card-title">Tests</div><div class="card-val">bats 116+ assertions</div></div>
   </div>
 </section>
 
@@ -203,7 +203,7 @@
 </section>
 
 <section>
-  <h2>QA compliance &mdash; 2026.QA.v1 &mdash; 15 rules, 72+ bats tests</h2>
+  <h2>QA compliance &mdash; 2026.QA.v1 &mdash; 16 rules, 116+ bats tests</h2>
   <table>
     <thead><tr><th>Rule</th><th>Requirement</th><th>Status</th></tr></thead>
     <tbody>
@@ -222,6 +222,7 @@
       <tr><td class="rule">R13</td><td class="plain">README and index.html kept in sync; CHANGELOG not duplicated into TODO</td><td class="pass">&#10003; PASS</td></tr>
       <tr><td class="rule">R14</td><td class="plain">Semantic versioning; 12-factor config (all env vars, no baked-in config)</td><td class="pass">&#10003; PASS</td></tr>
       <tr><td class="rule">R15</td><td class="plain">ZFS datasets tagged with <code>fts:version</code> and snapshotted at install</td><td class="pass">&#10003; PASS</td></tr>
+      <tr><td class="rule">R16</td><td class="plain">Summary output via <code>share/summary.m4</code> and <code>render()</code> — no bare <code>printf</code> blocks; no temp files; pipe <code>printf '_macro()\n' | m4 -D...</code></td><td class="pass">&#10003; PASS</td></tr>
     </tbody>
   </table>
 </section>
@@ -243,6 +244,7 @@
 <span class="section-head">## VERSION HISTORY</span>
 <span class="rule-text">v1.0 — Initial QA rules for fts-quadlet-setup (8 rules)
 v1.1 — R09–R15: secrets, VIP, no Makefile, CI-only testing, docs sync, semver, ZFS tagging
+v1.2 — R16: m4 template for summary output; render() helper; no bare printf blocks
 v1.1 — R09–R15: secrets, VIP, no Makefile, CI-only testing, docs sync, semver, ZFS tagging</span>
 
 <span class="section-head">## CORRECTNESS RULES</span>
@@ -369,6 +371,7 @@ You are a senior infrastructure automation engineer producing production-grade P
 ## VERSION HISTORY
 v1.0 — Initial QA rules for fts-quadlet-setup (8 rules)
 v1.1 — R09–R15: secrets, VIP, no Makefile, CI-only testing, docs sync, semver, ZFS tagging
+v1.2 — R16: m4 template for summary output; render() helper; no bare printf blocks
 
 ## CORRECTNESS RULES
 
@@ -411,6 +414,11 @@ WRONG: EnvironmentFile=/etc/containers/systemd/fts.env
        WantedBy=multi-user.target
 CORRECT: EnvironmentFile=%h/.config/containers/systemd/fts.env
          WantedBy=default.target
+
+### Rule 16 — Summary output via m4 template; no bare printf blocks [v1.2]
+All installer summary output uses render() backed by share/summary.m4.
+WRONG: printf '    %-22s %s\n' "CoT TCP:" "$FTS_IP:$FTS_COT_PORT"
+CORRECT: render endpoints
 
 ### Rule 8 — HAProxy terminates ALL TLS; containers receive plain [v1.1]
 HAProxy presents dapla_stack.pem for all TLS services. CoT SSL (8089) and
