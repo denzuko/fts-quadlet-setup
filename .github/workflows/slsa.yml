@@ -1,0 +1,79 @@
+name: SLSA Provenance
+
+on:
+  workflow_dispatch:
+  release:
+    types: [created]
+
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
+env:
+  NET_MATRIX_ORGANIZATION:  daplanet
+  NET_MATRIX_ORGUNIT:       dps
+  NET_MATRIX_OWNER:         FC13F74B@matrix.net
+  NET_MATRIX_CUSTOMER:      PVT-01
+  NET_MATRIX_COSTCENTER:    INT-01
+  NET_MATRIX_OID:           iso.org.dod.internet.42387
+  NET_MATRIX_DUNS:          iso.org.duns.039271257
+  NET_MATRIX_APPLICATION:   fts-quadlet-setup
+  NET_MATRIX_ROLE:          fts-stack
+  NET_MATRIX_ENVIRONMENT:   production
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build release tarball
+        run: |
+          mkdir -p dist
+          tar czf dist/fts-quadlet-setup-${{ github.ref_name }}.tar.gz             --exclude='.git' --exclude='dist' .
+      - name: Hash with openssl
+        id: hash
+        run: |
+          openssl dgst -sha256 -hex dist/*.tar.gz             | awk '{print $2}' > dist/release.sha256
+          echo "hashes=$(base64 -w0 dist/release.sha256)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fts-quadlet-setup-release
+          path: dist/
+
+  provenance:
+    needs: [build]
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    with:
+      base64-subjects:  "${{ needs.build.outputs.hashes }}"
+      upload-assets:    true
+      provenance-name:  "fts-quadlet-setup.intoto.jsonl"
+
+  verify:
+    needs: [build, provenance]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: fts-quadlet-setup-release
+          path: dist/
+      - name: Download provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "${{ github.ref_name }}"             --pattern "fts-quadlet-setup.intoto.jsonl" --repo "${{ github.repository }}"
+      - name: Verify + Rego gate
+        run: |
+          curl -sSfL https://github.com/slsa-framework/slsa-verifier/releases/latest/download/slsa-verifier-linux-amd64             -o slsa-verifier && chmod +x slsa-verifier
+          curl -sSfL https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static             -o opa && chmod +x opa
+          ./slsa-verifier verify-artifact dist/*.tar.gz             --provenance-path fts-quadlet-setup.intoto.jsonl             --source-uri "github.com/${{ github.repository }}"             --source-tag "${{ github.ref_name }}"
+          EXIT=$?
+          echo "{\"slsa_verifier_exit_code\":,\"event_name\":\"${{ github.event_name }}\",\"ref\":\"${{ github.ref }}\",\"slsa_provenance_attached\":true,\"provenance_workflow_triggered\":true}"             > slsa_input.json
+          ./opa eval -d policy/slsa.rego -i slsa_input.json             --fail-defined 'data.fts_quadlet.slsa.deny[_]' && echo "slsa gate: PASS"
